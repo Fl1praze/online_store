@@ -2,7 +2,7 @@ from fastapi import APIRouter, Response, Depends, HTTPException,status,Request
 from jose import jwt,JWTError
 from app.users.auth import get_password_hash, verify_password, create_access_token,create_refresh_token
 from app.users.dao import UsersDAO
-from app.users.schemas import CreateUser,LoginUser
+from app.users.schemas import CreateUser,LoginUser,ChangePasswordRequest,ChangeData
 from app.users.models import Users
 from app.users.dependencies import get_current_user
 from app.config import settings
@@ -25,9 +25,9 @@ async def register_user(user_data:CreateUser):
     await UsersDAO.add(
         email = user_data.email,
         hashed_password=hashed_password,
-        first_name = user_data.first_name,
-        last_name = user_data.last_name,
-        username = user_data.username
+        first_name = user_data.first_name.capitalize(),
+        last_name = user_data.last_name.capitalize(),
+        username = user_data.username.capitalize()
     )
     return {"message": "User registered successfully"}
 
@@ -62,14 +62,19 @@ async def read_user_me(current_user:Users =Depends(get_current_user)):
 
 
 @router.put('/change_pwd')
-async def change_password(old_pwd:str,new_pwd: str,current_user:Users =Depends(get_current_user)):
-    old_pwd_chek = verify_password(old_pwd,current_user.hashed_password)
+async def change_password(request: ChangePasswordRequest ,current_user:Users =Depends(get_current_user)):
+    old_pwd_chek = verify_password(request.old_password,current_user.hashed_password)
     if not old_pwd_chek:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail='Неверный пароль')
-    new_pwd_hash = get_password_hash(new_pwd)
+    new_pwd_hash = get_password_hash(request.new_password)
     await UsersDAO.update(current_user.id,hashed_password=new_pwd_hash)
     return {'message':'password update successful'}
 
+
+@router.put('/change_data')
+async def change_data(data:ChangeData,current_user : Users = Depends(get_current_user)):
+    await UsersDAO.update(current_user.id,first_name=data.first_name.capitalize(),last_name=data.last_name.capitalize(),username=data.username.capitalize())
+    return {'message':'update successful'}
 
 @router.post('refresh')
 async def refresh_token(request: Request, response: Response):
