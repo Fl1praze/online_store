@@ -29,7 +29,7 @@ async def get_current_user(token:str = Depends(get_token)):
     user = await UsersDAO.find_by_id(int(user_id))
     if not user:
         raise HTTPException(status_code=401)
-    pwd_hash_in_token = payload.get('pwd_hash')
-    if not user.hashed_password.startswith(pwd_hash_in_token):
-        raise HTTPException(status_code=401)
+    pwd_ver_token = payload.get('pwd_ver')
+    if user.password_version != pwd_ver_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     return user

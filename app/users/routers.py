@@ -8,16 +8,13 @@ from app.users.dependencies import get_current_user
 from app.config import settings
 router = APIRouter(prefix='/auth',tags =['Auth & Users '])
 
-
-#Выйти со всех устройств
-#Изменить данные о пользователе
 #OAuth 2 google
 
 @router.post('/register')
 async def register_user(user_data:CreateUser):
     try_user = await UsersDAO.find_one_or_none(email=user_data.email)
     if try_user:
-        raise HTTPException( status_code = status.HTTP_409_CONFLICT,detail='Пользователь уже существует')
+        raise HTTPException( status_code = status.HTTP_409_CONFLICT,detail='Пользователь c такой почтой  существует')
     try_username = await UsersDAO.find_one_or_none(username=user_data.username)
     if try_username:
         raise HTTPException( status_code= status.HTTP_409_CONFLICT,detail='Имя пользователя занято')
@@ -41,8 +38,8 @@ async def login_user(response: Response,user_data:LoginUser):
         password_is_valid = verify_password(user_data.password, user.hashed_password)
         if not password_is_valid:
             raise HTTPException(status_code = status.HTTP_409_CONFLICT,detail='Неверный пароль')
-    access_token =  create_access_token({"sub":str(user.id)},user.hashed_password)
-    refresh_token = create_access_token({"sub":str(user.id)},user.hashed_password)
+    access_token =  create_access_token({"sub":str(user.id)},user.password_version)
+    refresh_token = create_access_token({"sub":str(user.id)},user.password_version)
     #ИСправить название токена
     response.set_cookie('booking_access_token', access_token, httponly=True, max_age=1800,secure=True,samesite="lax")
     response.set_cookie('booking_refresh_token', refresh_token, httponly=True, max_age=604800,secure=True,samesite="lax")
@@ -62,12 +59,17 @@ async def read_user_me(current_user:Users =Depends(get_current_user)):
 
 
 @router.put('/change_pwd')
-async def change_password(request: ChangePasswordRequest ,current_user:Users =Depends(get_current_user)):
+async def change_password(request: ChangePasswordRequest ,response: Response,current_user:Users =Depends(get_current_user)):
     old_pwd_chek = verify_password(request.old_password,current_user.hashed_password)
     if not old_pwd_chek:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail='Неверный пароль')
+    new_version_token = await UsersDAO.rotate_password_version(current_user.id)
+    if new_version_token is None:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
     new_pwd_hash = get_password_hash(request.new_password)
-    await UsersDAO.update(current_user.id,hashed_password=new_pwd_hash)
+    await UsersDAO.update(current_user.id,hashed_password=new_pwd_hash,password_version=new_version_token)
+    new_access_token = create_access_token({"sub": str(current_user.id)},new_version_token)
+    response.set_cookie('booking_access_token', new_access_token, httponly=True, max_age=1800)
     return {'message':'password update successful'}
 
 
@@ -75,6 +77,21 @@ async def change_password(request: ChangePasswordRequest ,current_user:Users =De
 async def change_data(data:ChangeData,current_user : Users = Depends(get_current_user)):
     await UsersDAO.update(current_user.id,first_name=data.first_name.capitalize(),last_name=data.last_name.capitalize(),username=data.username.capitalize())
     return {'message':'update successful'}
+
+
+
+@router.post('/logout_other_sessions')
+async def logout_other_sessions(responce: Response,current_user: Users = Depends(get_current_user)):
+    new_version = await UsersDAO.rotate_password_version(current_user.id)
+    if new_version is None:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    new_access_token = create_access_token({"sub": str(current_user.id)},password_version=new_version)
+    responce.set_cookie('booking_access_token',new_access_token,httponly=True,max_age=1800)
+    return {
+        "message": "Все другие сеансы успешно завершены",
+        "new_password_version": new_version
+    }
+
 
 @router.post('refresh')
 async def refresh_token(request: Request, response: Response):
@@ -84,7 +101,7 @@ async def refresh_token(request: Request, response: Response):
     try:
         payload = jwt.decode(refresh_token, settings.SECRET_KEY, settings.ALGORITHM)
         user_id: str = payload.get("sub")
-        pwd_hash_in_token = payload.get("pwd_hash")
+        pwd_ver_in_token: int = payload.get("pwd_ver")
         if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Невалидный refresh token')
     except JWTError:
@@ -94,12 +111,11 @@ async def refresh_token(request: Request, response: Response):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Пользователь не найден')
 
-    if not user.hashed_password.startswith(pwd_hash_in_token):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail='Refresh token недействителен (пароль изменён)')
+    if user.password_version != pwd_ver_in_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token недействителен")
 
-    new_access_token = create_access_token({"sub": str(user.id)}, user.hashed_password)
-    new_refresh_token = create_refresh_token({"sub": str(user.id)}, user.hashed_password)
+    new_access_token = create_access_token({"sub": str(user.id)}, user.password_version)
+    new_refresh_token = create_refresh_token({"sub": str(user.id)}, user.password_version)
 
     response.set_cookie('booking_access_token', new_access_token, httponly=True, max_age=1800)
     response.set_cookie('booking_refresh_token', new_refresh_token, httponly=True, max_age=604800)
@@ -109,5 +125,6 @@ async def refresh_token(request: Request, response: Response):
         "access_token": new_access_token,
         "token_type": "bearer"
     }
+
 
 

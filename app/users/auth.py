@@ -17,7 +17,7 @@ def verify_password(plain_password,hashed_password)->bool:
 def create_token(
         data: dict,
         expires_delta: timedelta,
-        hashed_password: str,
+        password_version: int,
         token_type: str
 ) -> str:
     to_encode = data.copy()
@@ -26,7 +26,7 @@ def create_token(
     now = datetime.now(timezone.utc)
     to_encode.update({
         'exp':expire,
-        'pwd_hash': hashed_password[:8],
+        "pwd_ver": password_version,
         'iat': now,
         'jti': jti,
         'type': token_type
@@ -36,8 +36,8 @@ def create_token(
     )
     return encoded_jwt
 
-def create_access_token(data: dict, hashed_password: str) -> str:
-    return create_token(data, timedelta(minutes=30), hashed_password,"access")
+def create_access_token(data: dict, password_version: int) -> str:
+    return create_token(data, timedelta(minutes=30), password_version,"access")
 
-def create_refresh_token(data: dict, hashed_password: str) -> str:
-    return create_token(data, timedelta(days=7), hashed_password,"refresh")
+def create_refresh_token(data: dict, password_version: int) -> str:
+    return create_token(data, timedelta(days=7), password_version,"refresh")

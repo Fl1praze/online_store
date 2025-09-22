@@ -13,3 +13,4 @@ class Users(Base):
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
+    password_version = Column(Integer, default=1)  # ← Добавить это поле
