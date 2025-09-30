@@ -39,7 +39,7 @@ async def login_user(response: Response,user_data:LoginUser):
         if not password_is_valid:
             raise HTTPException(status_code = status.HTTP_409_CONFLICT,detail='Неверный пароль')
     access_token =  create_access_token({"sub":str(user.id)},user.password_version)
-    refresh_token = create_access_token({"sub":str(user.id)},user.password_version)
+    refresh_token = create_refresh_token({"sub":str(user.id)},user.password_version)
     #ИСправить название токена
     response.set_cookie('booking_access_token', access_token, httponly=True, max_age=1800,secure=True,samesite="lax")
     response.set_cookie('booking_refresh_token', refresh_token, httponly=True, max_age=604800,secure=True,samesite="lax")
