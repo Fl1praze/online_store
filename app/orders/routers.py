@@ -72,6 +72,19 @@ async def get_user_orders(
 
     return orders
 
+
+@router.get('/get_all_orders',response_model=list[OrderResponse])
+async def get_all_orders(current_user = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Доступ запрещён')
+
+    orders = await OrderDAO.find_all()
+
+    for order in orders:
+        order_items = await OrderItemDAO.find_all(order_id=order.id)
+        order.items = order_items
+    return orders
+
 @router.get("/{order_id}", response_model=OrderResponse)
 async def get_order(
     order_id: int,
