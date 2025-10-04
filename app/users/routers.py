@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Response, Depends, HTTPException,status,Request
 from jose import jwt,JWTError
-from app.users.auth import get_password_hash, verify_password, create_access_token,create_refresh_token
+from app.users.auth import get_password_hash, verify_password, create_access_token,create_refresh_token,create_email_verification_token
 from app.users.dao import UsersDAO
 from app.users.schemas import CreateUser,LoginUser,ChangePasswordRequest,ChangeData
 from app.users.models import Users
 from app.users.dependencies import get_current_user
 from app.config import settings
+from app.users.verif_email import send_verification_email
 router = APIRouter(prefix='/auth',tags =['Auth & Users '])
 
 #OAuth 2 google
@@ -26,7 +27,32 @@ async def register_user(user_data:CreateUser):
         last_name = user_data.last_name.capitalize(),
         username = user_data.username.capitalize()
     )
+    token = create_email_verification_token(user_data.email)
+    send_verification_email(user_data.email, token)
     return {"message": "User registered successfully"}
+
+
+@router.get("/verify-email")
+async def verify_email(token: str):
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        token_type = payload.get("type")
+        email = payload.get("sub")
+
+        if token_type != "email_verification":
+            raise HTTPException(status_code=400, detail="Invalid token type")
+        if not email:
+            raise HTTPException(status_code=400, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+
+    user = await UsersDAO.find_one_or_none(email=email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await UsersDAO.update(user.id, is_active=True)
+    return {"message": "Email успешно подтверждён!"}
+
 
 
 @router.post('/login')
@@ -38,6 +64,9 @@ async def login_user(response: Response,user_data:LoginUser):
         password_is_valid = verify_password(user_data.password, user.hashed_password)
         if not password_is_valid:
             raise HTTPException(status_code = status.HTTP_409_CONFLICT,detail='Неверный пароль')
+    user_verif_email = user.is_active
+    if not user_verif_email:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail='email не подтвержден')
     access_token =  create_access_token({"sub":str(user.id)},user.password_version)
     refresh_token = create_refresh_token({"sub":str(user.id)},user.password_version)
     #ИСправить название токена

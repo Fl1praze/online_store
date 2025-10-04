@@ -11,6 +11,6 @@ class Users(Base):
     username = Column(String, unique=True)
     email = Column(String, unique=True)
     hashed_password = Column(String)
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
-    password_version = Column(Integer, default=1)  # ← Добавить это поле
+    password_version = Column(Integer, default=1)
