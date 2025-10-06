@@ -31,7 +31,7 @@ async def all_products():
 
 
 @router.get("/category/{category_slug}")
-async def product_by_category(category_slug: str):
+async def all_product_by_category_slug(category_slug: str):
     category = await CategoriesDAO.find_one_or_none(slug=category_slug)
     if not category:
         raise HTTPException(404, "Category not found")
