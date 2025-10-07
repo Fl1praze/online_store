@@ -30,6 +30,21 @@ async def all_products():
     return products
 
 
+@router.get('/{product_slug}')
+async def get_product_quantity_by_slug(product_slug: str):
+    products = await ProductsDAO.find_one_or_none(slug=product_slug)
+    if not products:
+        raise HTTPException(status_code=404,detail='Products not found')
+    products_is_active = products.is_active
+    if not products_is_active:
+        return {'message':'Товар не активен'}
+    products_quantity = products.stock
+    if products_quantity <= 0:
+        return {'message': 'Товара нет на складе'}
+    return products
+
+
+
 @router.get("/category/{category_slug}")
 async def all_product_by_category_slug(category_slug: str):
     category = await CategoriesDAO.find_one_or_none(slug=category_slug)
