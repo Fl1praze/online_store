@@ -7,12 +7,15 @@ from app.users.models import Users
 from app.users.dependencies import get_current_user
 from app.config import settings
 from app.users.verif_email import send_verification_email
+from app.tasks import send_verification_email_task
+
+
 router = APIRouter(prefix='/auth',tags =['Auth & Users '])
 
 #OAuth 2 google
 
 @router.post('/register')
-async def register_user(user_data:CreateUser):
+async def register_user(user_data:CreateUser,):
     try_user = await UsersDAO.find_one_or_none(email=user_data.email)
     if try_user:
         raise HTTPException( status_code = status.HTTP_409_CONFLICT,detail='Пользователь c такой почтой  существует')
@@ -28,7 +31,7 @@ async def register_user(user_data:CreateUser):
         username = user_data.username.capitalize()
     )
     token = create_email_verification_token(user_data.email)
-    send_verification_email(user_data.email, token)
+    send_verification_email_task.delay(user_data.email,token)
     return {"message": "User registered successfully"}
 
 
