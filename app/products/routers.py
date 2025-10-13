@@ -1,11 +1,14 @@
+import json
 from http.client import HTTPException
 
 from fastapi import APIRouter,HTTPException,status,File,UploadFile
 from app.products.dao import ProductsDAO
 from app.category.dao import CategoriesDAO
-from app.products.schemas import CreateProduct
+from app.products.schemas import CreateProduct,ResponseProduct
 from slugify import slugify
 from app.tasks import process_product_images_task
+from app.redis_client import redis_client
+
 router = APIRouter(prefix='/products', tags=['products'])
 
 
@@ -63,15 +66,37 @@ async def all_products():
 
 @router.get('/{product_slug}')
 async def get_product_quantity_by_slug(product_slug: str):
+    cache_key = f'product:{product_slug}'
+    cached_value = redis_client.get(cache_key)
+    if cached_value:
+        return json.loads(cached_value)
+
     products = await ProductsDAO.find_one_or_none(slug=product_slug)
     if not products:
         raise HTTPException(status_code=404,detail='Products not found')
+
     products_is_active = products.is_active
     if not products_is_active:
         return {'message':'Товар не активен'}
+
     products_quantity = products.stock
     if products_quantity <= 0:
         return {'message': 'Товара нет на складе'}
+
+    product_dict = {
+        "id": products.id,
+        "name": products.name,
+        "slug": products.slug,
+        "description": products.description,
+        "price": float(products.price),
+        'small_image':products.small_image,
+        'large_image':products.large_image,
+        "stock": products.stock,
+        'category_id':products.category_id,
+        'rating':products.rating,
+        "is_active": products.is_active,
+    }
+    redis_client.setex(cache_key, 600, json.dumps(product_dict))
     return products
 
 

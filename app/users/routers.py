@@ -12,7 +12,6 @@ from app.tasks import send_verification_email_task
 
 router = APIRouter(prefix='/auth',tags =['Auth & Users '])
 
-#OAuth 2 google
 
 @router.post('/register')
 async def register_user(user_data:CreateUser,):
