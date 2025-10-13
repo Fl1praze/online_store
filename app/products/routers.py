@@ -11,7 +11,7 @@ from app.redis_client import redis_client
 
 router = APIRouter(prefix='/products', tags=['products'])
 
-
+#with salary+redis
 @router.post('/')
 async def create_product(
         name:str,
@@ -58,12 +58,17 @@ async def create_product(
 
 @router.get('/')
 async def all_products():
+    # cache_key = 'products'
+    # cached_value = redis_client.get(cache_key)
+    # if cached_value:
+    #     return json.loads(cached_value)
     products = await ProductsDAO.get_active_stock_products()
     if not products:
         raise HTTPException(status_code=404, detail="There are no products")
+    # redis_client.setex(cache_key,600,json.dumps(products))
     return products
 
-
+#with redis(memory)
 @router.get('/{product_slug}')
 async def get_product_quantity_by_slug(product_slug: str):
     cache_key = f'product:{product_slug}'
@@ -102,19 +107,34 @@ async def get_product_quantity_by_slug(product_slug: str):
 
 @router.get("/category/{category_slug}")
 async def all_product_by_category_slug(category_slug: str):
+    cache_key = f'category:{category_slug}'
+    cached_value = redis_client.get(cache_key)
+    if cached_value:
+        return json.loads(cached_value)
     category = await CategoriesDAO.find_one_or_none(slug=category_slug)
     if not category:
         raise HTTPException(404, "Category not found")
     category_ids = [category.id] + await CategoriesDAO.get_subcategories(category.id)
-    return await ProductsDAO.find_by_category_ids(category_ids)
+    result = await ProductsDAO.find_by_category_ids(category_ids)
 
-
-@router.get('/detail/{product_slug}')
-async def product_detail(product_slug: str):
-    execute_slug = await ProductsDAO.find_one_or_none(slug=product_slug)
-    if not execute_slug:
-        raise  HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail='There is no product found')
-    return execute_slug
+    products_list = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "slug": p.slug,
+            "description":p.description,
+            "price": p.price,
+            "stock": p.stock,
+            "rating": p.rating,
+            "is_active": p.is_active,
+            'category_id':p.category_id,
+            "small_image": p.small_image,
+            "large_image": p.large_image,
+        }
+        for p in result
+    ]
+    redis_client.setex(cache_key,600,json.dumps(products_list))
+    return result
 
 
 @router.put('/{product_slug}')
