@@ -18,9 +18,9 @@ class Settings(BaseSettings):
     SMTP_USER: str
     SMTP_PASSWORD: str
 
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = 6379
-    REDIS_DB: int = 0
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_DB: int
 
 
     @model_validator(mode='before')

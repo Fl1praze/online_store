@@ -55,17 +55,33 @@ async def create_product(
         'task_id': task.id
     }
 
-
+#with redis cache(memory)
 @router.get('/')
 async def all_products():
-    # cache_key = 'products'
-    # cached_value = redis_client.get(cache_key)
-    # if cached_value:
-    #     return json.loads(cached_value)
+    cache_key = 'products'
+    cached_value = redis_client.get(cache_key)
+    if cached_value:
+        return json.loads(cached_value)
     products = await ProductsDAO.get_active_stock_products()
     if not products:
         raise HTTPException(status_code=404, detail="There are no products")
-    # redis_client.setex(cache_key,600,json.dumps(products))
+    products_list = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "slug": p.slug,
+            "description": p.description,
+            "price": p.price,
+            "stock": p.stock,
+            "rating": p.rating,
+            "is_active": p.is_active,
+            'category_id': p.category_id,
+            "small_image": p.small_image,
+            "large_image": p.large_image,
+        }
+        for p in products
+    ]
+    redis_client.setex(cache_key,600,json.dumps(products_list))
     return products
 
 #with redis(memory)
@@ -104,7 +120,7 @@ async def get_product_quantity_by_slug(product_slug: str):
     redis_client.setex(cache_key, 600, json.dumps(product_dict))
     return products
 
-
+#with redis cache
 @router.get("/category/{category_slug}")
 async def all_product_by_category_slug(category_slug: str):
     cache_key = f'category:{category_slug}'
