@@ -154,14 +154,39 @@ async def all_product_by_category_slug(category_slug: str):
 
 
 @router.put('/{product_slug}')
-async def update_product(product_slug: str,data:CreateProduct):
+async def update_product(
+        product_slug: str,
+        name: str,
+        description: str,
+        price: int,
+        stock: int,
+        category_id: int,
+        small_image: UploadFile = File(...),
+        large_image: UploadFile = File(...)
+):
     execute_slug = await ProductsDAO.find_one_or_none(slug=product_slug)
     if not execute_slug:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="There is no product found")
-    execute_category = await CategoriesDAO.find_by_id(data.category_id)
+    execute_category = await CategoriesDAO.find_by_id(category_id)
     if not execute_category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="There is no category found")
-    query = await ProductsDAO.update_by_slug(product_slug,**data.model_dump(),slug=slugify(data.name))
+    query = await ProductsDAO.update_by_slug(
+        product_slug,
+        name=name,
+        slug=slugify(name),
+        description=description,
+        price=price,
+        stock=stock,
+        category_id=category_id,
+        small_image=f'{slugify(name)}_small.jpg',
+        large_image=f"{slugify(name)}_large.jpg",
+        rating=0.0
+    )
+
+    redis_client.delete(f'product:{product_slug}')
+    redis_client.delete(f'category: {product_slug}')
+    redis_client.delete('products')
+
     return {"message":'Product update is successful'}
 
 
@@ -171,4 +196,9 @@ async def delete_product(product_slug: str):
     if not execute_slug:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="There is no product found")
     query = await ProductsDAO.update_by_slug(product_slug,is_active=False)
+
+    redis_client.delete(f'product:{slug}')
+    redis_client.delete(f'category: {slig}')
+    redis_client.delete('products')
+
     return {'message':'Product delete is successful'}

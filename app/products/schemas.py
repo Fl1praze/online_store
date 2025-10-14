@@ -18,11 +18,10 @@ class ResponseProduct(BaseModel):
     category_id: int
     is_active: bool
     description: str
-    id:int
-    small_image:str
-    large_image:str
+    small_image:str = None
+    large_image:str = None
     stock: int
-    rating:float
+    rating : bool
 
     class Config:
         from_attributes = True
