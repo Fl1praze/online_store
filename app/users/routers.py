@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Response, Depends, HTTPException,status,Request
 from jose import jwt,JWTError
 from app.users.auth import get_password_hash, verify_password, create_access_token,create_refresh_token,create_email_verification_token
@@ -6,9 +8,8 @@ from app.users.schemas import CreateUser,LoginUser,ChangePasswordRequest,ChangeD
 from app.users.models import Users
 from app.users.dependencies import get_current_user
 from app.config import settings
-from app.users.verif_email import send_verification_email
 from app.tasks import send_verification_email_task
-
+from app.redis_client import redis_client
 
 router = APIRouter(prefix='/auth',tags =['Auth & Users '])
 
@@ -86,6 +87,20 @@ async def logout_user(response:Response):
 
 @router.get('/me')
 async def read_user_me(current_user:Users =Depends(get_current_user)):
+    cache_key = f'user:{current_user.id}'
+    cache_value = redis_client.get(cache_key)
+
+    if cache_value:
+        return json.loads(cache_value)
+    data_list = {
+        'id': current_user.id,
+        'first_name': current_user.first_name,
+        'last_name': current_user.last_name,
+        'username': current_user.username,
+        'email': current_user.email
+    }
+    redis_client.setex(cache_key,600,json.dumps(data_list))
+
     return current_user
 
 
