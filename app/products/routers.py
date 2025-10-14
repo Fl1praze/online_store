@@ -164,12 +164,17 @@ async def update_product(
         small_image: UploadFile = File(...),
         large_image: UploadFile = File(...)
 ):
+    execute_old_name = await ProductsDAO.find_one_or_none(name=name)
+    if execute_old_name:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Товар с таким названием уже существуеет")
+
     execute_slug = await ProductsDAO.find_one_or_none(slug=product_slug)
     if not execute_slug:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="There is no product found")
     execute_category = await CategoriesDAO.find_by_id(category_id)
     if not execute_category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="There is no category found")
+
     query = await ProductsDAO.update_by_slug(
         product_slug,
         name=name,
@@ -197,8 +202,8 @@ async def delete_product(product_slug: str):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="There is no product found")
     query = await ProductsDAO.update_by_slug(product_slug,is_active=False)
 
-    redis_client.delete(f'product:{slug}')
-    redis_client.delete(f'category: {slig}')
+    redis_client.delete(f'product:{product_slug}')
+    redis_client.delete(f'category: {product_slug}')
     redis_client.delete('products')
 
     return {'message':'Product delete is successful'}
