@@ -116,12 +116,15 @@ async def change_password(request: ChangePasswordRequest ,response: Response,cur
     await UsersDAO.update(current_user.id,hashed_password=new_pwd_hash,password_version=new_version_token)
     new_access_token = create_access_token({"sub": str(current_user.id)},new_version_token)
     response.set_cookie('booking_access_token', new_access_token, httponly=True, max_age=1800)
+
+    redis_client.delete(f'user:{current_user.id}')
     return {'message':'password update successful'}
 
 
 @router.put('/change_data')
 async def change_data(data:ChangeData,current_user : Users = Depends(get_current_user)):
     await UsersDAO.update(current_user.id,first_name=data.first_name.capitalize(),last_name=data.last_name.capitalize(),username=data.username.capitalize())
+    redis_client.delete(f'user:{current_user.id}')
     return {'message':'update successful'}
 
 
