@@ -1,5 +1,4 @@
 import json
-
 from app.redis_client import redis_client
 from fastapi import APIRouter,HTTPException,status
 from app.category.dao import CategoriesDAO
@@ -7,6 +6,7 @@ from app.category.schemas import CreateCategory
 from slugify import slugify
 
 router = APIRouter(prefix='/categories', tags=['category'])
+
 
 @router.get('/')
 async def get_all_categories():
@@ -30,7 +30,6 @@ async def get_all_categories():
     return result
 
 
-#Сделать ошибку если уже существует такая категория
 @router.post('/',status_code=201,description='Для создания главной категории не отправлять parent_id')
 async def create_category(data: CreateCategory):
     query =  await CategoriesDAO.find_one_or_none(name=data.name)
@@ -53,6 +52,7 @@ async def update_category(category_slug: str,data: CreateCategory):
         slug=slugify(data.name)
     )
     redis_client.delete(f'all_categories')
+    redis_client.delete(f'category:{category_slug}')
     return {'message':'Category update is successful'}
 
 
@@ -63,5 +63,6 @@ async def delete_category(category_slug: str):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no category found')
 
     await CategoriesDAO.update_by_slug(category_slug, is_active=False)
-    redis_client.delete('all_categories')
+    redis_client.delete(f'all_categories')
+    redis_client.delete(f'category:{category_slug}')
     return {"message": "Category deleted successfully (marked as inactive)"}
