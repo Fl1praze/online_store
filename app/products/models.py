@@ -15,6 +15,7 @@ class Product(Base):
     stock = Column(Integer)
     category_id = Column(Integer, ForeignKey('categories.id'))
     rating = Column(Float)
+    review_count = Column(Float, default=0.0)
     is_active = Column(Boolean, default=True)
 
 
