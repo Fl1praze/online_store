@@ -1,19 +1,19 @@
 from app.dao.base import BaseDAO
 from app.orders.models import Order,OrderItem
-from app.database import async_session_maker
 from sqlalchemy import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 class OrderDAO(BaseDAO):
     model = Order
 
     @classmethod
-    async def add_order(cls, **data):
-        async with async_session_maker() as session:
-            query = insert(cls.model).values(**data)
-            result = await session.execute(query)
-            await session.commit()
+    async def add_order(cls, session: AsyncSession, **data):
+        query = insert(cls.model).values(**data)
+        result = await session.execute(query)
+        await session.flush()
+        new_id = result.inserted_primary_key[0]
+        return new_id
 
-            new_id = result.inserted_primary_key[0]
-            return new_id
+
 class OrderItemDAO(BaseDAO):
     model = OrderItem

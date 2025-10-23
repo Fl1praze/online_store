@@ -5,13 +5,13 @@ from app.config import settings
 from uuid import uuid4
 
 
-pwd_context = CryptContext(schemes=['bcrypt'],deprecated = 'auto')
+pwd_context = CryptContext(schemes=['argon2'],deprecated = 'auto')
 
 def get_password_hash(password: str) ->str:
     return pwd_context.hash(password)
 
 def verify_password(plain_password,hashed_password)->bool:
-    return pwd_context.verify(plain_password,hashed_password)
+    return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_token(
