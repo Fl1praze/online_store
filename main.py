@@ -9,6 +9,8 @@ from app.cart.routers import router as cart_routers
 from app.orders.routers import router as order_router
 from app.review.routers import router as review_router
 
+from app.chat.router import router as chat_router
+
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -18,7 +20,6 @@ app.include_router(products_routers)
 app.include_router(review_router)
 app.include_router(cart_routers)
 app.include_router(order_router)
-
-
+app.include_router(chat_router)
 
 

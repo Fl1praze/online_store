@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чат Поддержки</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Добавим стили для сообщений, чтобы было понятнее */
+        .message-bubble { @apply p-2 rounded-lg mb-2 max-w-xs break-words; }
+        .my-message { @apply bg-blue-500 text-white ml-auto; } /* Мои сообщения справа */
+        .other-message { @apply bg-gray-200 text-gray-800 mr-auto; } /* Чужие сообщения слева */
+        .info-message { @apply text-xs text-gray-500 text-center my-1; } /* Системные сообщения */
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+    <div class="w-full max-w-md bg-white rounded-lg shadow-md p-6">
+        <h1 class="text-2xl font-bold text-center mb-4">
+            Чат Поддержки
+        </h1>
+        <h2 class="text-sm text-center text-gray-600 mb-2">
+            <!-- Используем переменные Jinja2 -->
+            Вы вошли как: <b>{{ user.username }}</b> ({% if user.is_admin %}Админ{% else %}Клиент{% endif %})
+        </h2>
+
+        <div id="messages" class="h-64 overflow-y-auto border rounded-md p-3 mb-4 bg-gray-50 space-y-2">
+            <div class="info-message">Подключение...</div>
+        </div>
+
+        <form id="messageForm" class="flex gap-2">
+            <!-- Поле ID клиента (только для админов) -->
+            <!-- Ты отлично придумал прятать его через 'hidden' -->
+            <input
+                type="text"
+                id="recipientIdInput"
+                placeholder="ID клиента"
+                class="{% if not user.is_admin %}hidden{% endif %} w-24 border rounded-md p-2 focus:outline-none"
+            />
+            <!-- Поле сообщения -->
+            <input
+                type="text"
+                id="messageInput"
+                placeholder="Введите сообщение..."
+                autocomplete="off"
+                required
+                class="flex-1 border rounded-md p-2 focus:outline-none"
+            />
+            <button type="submit" class="bg-blue-500 text-white rounded-md px-4 py-2 font-semibold">
+                Отправить
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // --- JavaScript на стороне клиента ---
+
+        // Получаем переменные, которые Jinja2 вставил в HTML
+        const wsToken = "{{ ws_token }}"; // Временный токен
+
+        // --- ИСПРАВЛЕНИЕ ОШИБКИ ---
+        // 1. Было 'cons', стало 'const'
+        // 2. {{ user.is_admin|lower }} превратится в 'true' или 'false' (без кавычек)
+        const isAdmin = {{ user.is_admin|lower }};
+
+        // Подключаемся к WS, используя токен
+        // (Используем wsProtocol для работы на HTTPS в будущем)
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/chat/ws?token=${wsToken}`;
+        const ws = new WebSocket(wsUrl);
+
+        // Находим элементы
+        const messages = document.getElementById('messages');
+        const form = document.getElementById('messageForm');
+        const messageInput = document.getElementById('messageInput');
+        const recipientIdInput = document.getElementById('recipientIdInput');
+
+        // Прячем поле ID, если не админ (твой код был хороший, но этот вариант тоже работает)
+        // if (!isAdmin) {
+        //     recipientIdInput.style.display = 'none';
+        // }
+        // (Но твой способ с 'hidden' в HTML даже лучше!)
+
+        // Функция добавления сообщения
+        const addMessage = (data, type = 'info') => {
+            const el = document.createElement('div');
+            // el.className = 'text-sm mb-1'; // Старый стиль
+            el.className = 'message-bubble'; // Новый стиль
+
+            if (type === 'my') {
+                el.classList.add('my-message');
+            } else if (type === 'other') {
+                el.classList.add('other-message');
+            } else { // 'info'
+                 el.classList.add('info-message');
+                 // Убираем фон и рамку для info сообщений
+                 el.classList.remove('p-2', 'rounded-lg', 'max-w-xs');
+            }
+
+            el.textContent = data;
+            messages.appendChild(el);
+            messages.scrollTop = messages.scrollHeight;
+        };
+
+        // Обработчики WebSocket
+        ws.onopen = (event) => {
+            // Убираем "Подключение..."
+            const connectingMsg = messages.querySelector('.info-message');
+            if (connectingMsg && connectingMsg.textContent.includes('Подключение')) {
+                connectingMsg.remove();
+            }
+            addMessage('Вы подключены к чату!', 'info');
+        };
+
+        ws.onmessage = (event) => {
+            const messageData = event.data;
+            let messageType = 'other'; // По умолчанию - чужое
+
+            // Пробуем определить, кто отправил, для стилизации
+            if (messageData.startsWith('Вы:')) messageType = 'my';
+            if (messageData.startsWith('Вы (клиенту')) messageType = 'my';
+            if (messageData.startsWith('Вы #')) messageType = 'info';
+            if (messageData.startsWith('Клиент #')) messageType = 'info';
+            if (messageData.startsWith('Админ #')) messageType = 'info';
+            if (messageData.startsWith('Ошибка:')) messageType = 'info';
+            if (messageData.startsWith('Поддержка:')) messageType = 'other';
+
+            addMessage(event.data, messageType);
+        };
+        ws.onerror = (event) => { addMessage('Ошибка подключения. Обновите страницу.', 'info'); };
+        ws.onclose = (event) => { addMessage('Соединение закрыто. Перезагрузите страницу.', 'info'); };
+
+
+        // Обработчик отправки формы
+        form.onsubmit = (event) => {
+            event.preventDefault();
+            const message = messageInput.value;
+
+            if (message.trim()) {
+                let dataToSend;
+                if (isAdmin) {
+                    const recipientId = recipientIdInput.value;
+                    if (!recipientId || !/^\d+$/.test(recipientId)) { // Улучшенная проверка, что это число
+                        addMessage("Ошибка: Админ должен указать ID клиента (число).", 'info');
+                        return;
+                    }
+                    dataToSend = JSON.stringify({
+                        recipient_id: parseInt(recipientId), // Отправляем как число
+                        text: message
+                    });
+                } else {
+                    dataToSend = message;
+                }
+
+                ws.send(dataToSend);
+                messageInput.value = '';
+            }
+        };
+    </script>
+</body>
+</html>

@@ -130,8 +130,6 @@ async def cancel_order(
         current_user: Users = Depends(get_current_user),
         session: AsyncSession = Depends(get_async_session)
 ):
-    updated_order = None
-
     async with session.begin():
         order = await OrderDAO.find_one_or_none(session, id=order_id, user_id=current_user.id)
 

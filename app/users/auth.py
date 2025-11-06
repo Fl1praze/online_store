@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta,timezone
-from jose import jwt
+from jose import jwt,JWTError
 from passlib.context import CryptContext
 from app.config import settings
 from uuid import uuid4
@@ -51,3 +51,36 @@ def create_email_verification_token(email: str) -> str:
     }
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, settings.ALGORITHM)
     return encoded_jwt
+
+
+def create_websocket_token(user_id: int) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(seconds=30)
+    to_encode = {
+        "sub": str(user_id),
+        "exp": expire,
+        "type": "websocket_auth"
+    }
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, settings.ALGORITHM)
+    return encoded_jwt
+
+
+def verify_websocket_token(token: str) -> int | None:
+    """
+    Проверяет наш временный WebSocket-токен.
+    Возвращает user_id, если токен валиден, или None.
+    """
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+
+        token_type = payload.get("type")
+        if token_type != "websocket_auth":
+            return None
+
+        user_id_str = payload.get("sub")
+        if not user_id_str:
+            return None
+
+        return int(user_id_str)
+
+    except JWTError:
+        return None
