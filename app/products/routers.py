@@ -10,7 +10,7 @@ from app.tasks import process_product_images_task
 from app.redis_client import redis_client
 from app.database import get_async_session
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.users.dependencies import get_current_user
 router = APIRouter(prefix='/products', tags=['products'])
 
 
@@ -24,9 +24,12 @@ async def create_product(
         category_id: int,
         small_image: UploadFile = File(...),
         large_image: UploadFile = File(...),
+        current_user = Depends(get_current_user),
         session: AsyncSession = Depends(get_async_session)
 ):
     async with session.begin():
+        if current_user.is_admin is False:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail='Доступ запрещён')
         execute_category_id = await CategoriesDAO.find_one_or_none(session, id=category_id)
         if not execute_category_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='This category does not exist')
@@ -185,9 +188,12 @@ async def update_product(
         category_id: int,
         small_image: UploadFile = File(...),
         large_image: UploadFile = File(...),
+        current_user = Depends(get_current_user),
         session: AsyncSession = Depends(get_async_session)
 ):
     async with session.begin():
+        if current_user.is_admin is False:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail='Доступ запрещён')
         execute_old_name = await ProductsDAO.find_one_or_none(session, name=name)
         if execute_old_name and execute_old_name.slug != product_slug:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Товар с таким названием уже существуеет")
@@ -226,9 +232,12 @@ async def update_product(
 @router.delete('/{product_slug}')
 async def delete_product(
         product_slug: str,
+        current_user = Depends(get_current_user),
         session: AsyncSession = Depends(get_async_session)
 ):
     async with session.begin():
+        if current_user.is_admin is False:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail='Доступ запрещён')
         execute_slug = await ProductsDAO.find_one_or_none(session, slug=product_slug)
         if not execute_slug:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There is no product found")
