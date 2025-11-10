@@ -10,7 +10,7 @@ from app.orders.routers import router as order_router
 from app.review.routers import router as review_router
 
 from app.chat.router import router as chat_router
-
+#андрей тут
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
