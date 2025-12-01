@@ -1,0 +1,159 @@
+{% extends "shop/base.html" %}
+
+{% block title %}{{ product.name }} – Магазин{% endblock %}
+
+{% block content %}
+<!-- Информация о товаре -->
+<div class="bg-white rounded-lg shadow-sm p-6 mb-6 mt-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Изображение товара -->
+            <div class="flex items-center justify-center bg-gray-50 rounded-lg p-8 min-h-[400px]">
+                <img src="/static/img/{{ product.large_image }}" 
+                     alt="{{ product.name }}" 
+                     class="max-w-full max-h-96 object-contain">
+            </div>
+
+            <!-- Информация о товаре -->
+            <div class="flex flex-col">
+                <h1 class="text-3xl font-bold text-gray-900 mb-4">{{ product.name }}</h1>
+                
+                {% if product.rating %}
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="text-yellow-400 text-lg">★</span>
+                        <span class="text-lg font-semibold text-gray-900">{{ "%.1f"|format(product.rating) }}</span>
+                    </div>
+                {% endif %}
+
+                <div class="text-3xl font-bold text-gray-900 mb-2">{{ "{:,}".format(product.price).replace(",", " ") }} ₽</div>
+                
+                <div class="text-sm text-gray-600 mb-6">
+                    {% if product.stock > 0 %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            В наличии: {{ product.stock }} шт.
+                        </span>
+                    {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Нет в наличии
+                        </span>
+                    {% endif %}
+                </div>
+
+                <p class="text-gray-700 mb-6 leading-relaxed flex-grow">{{ product.description }}</p>
+
+                <form onsubmit="event.preventDefault(); addToCartDetail({{ product.id }});" class="flex gap-3 mt-auto">
+                    <input type="number" min="1" max="{{ product.stock }}" value="1" 
+                           id="detail-qty-{{ product.id }}"
+                           class="w-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button type="submit" 
+                            class="flex-1 px-6 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors">
+                        Добавить в корзину
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+<!-- Отзывы -->
+<div class="bg-white rounded-lg shadow-sm p-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-6">Отзывы</h2>
+    
+    {% if not reviews %}
+        <p class="text-gray-500">Пока нет отзывов.</p>
+    {% else %}
+        <div class="space-y-4 mb-8">
+            {% for r in reviews %}
+                <div class="border-b border-gray-200 pb-4 last:border-0">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-yellow-400">★</span>
+                            <span class="font-semibold text-gray-900">{{ r.rating }}</span>
+                        </div>
+                        <span class="text-sm text-gray-500">{{ r.created_at.strftime('%d.%m.%Y') if r.created_at else '' }}</span>
+                    </div>
+                    <p class="text-gray-700">{{ r.comment }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if user %}
+        {% if can_review %}
+            <div class="border-t border-gray-200 pt-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Оставить отзыв</h3>
+                <form onsubmit="event.preventDefault(); submitReview({{ product.id }});" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Оценка (1–5)</label>
+                        <input type="number" id="review-rating" min="1" max="5" value="5" required
+                               class="w-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Комментарий</label>
+                        <textarea id="review-comment" required rows="4"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                    </div>
+                    <button type="submit" 
+                            class="px-6 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors">
+                        Отправить отзыв
+                    </button>
+                </form>
+            </div>
+        {% else %}
+            <div class="border-t border-gray-200 pt-6">
+                <p class="text-sm text-gray-600 bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                    Вы можете оставить отзыв только после того, как закажете этот товар.
+                </p>
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="border-t border-gray-200 pt-6">
+            <p class="text-sm text-gray-600">
+                Чтобы оставить отзыв, <a href="/auth/login" class="text-blue-600 hover:underline">войдите</a> или 
+                <a href="/auth/register" class="text-blue-600 hover:underline">зарегистрируйтесь</a>.
+            </p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+async function addToCartDetail(productId) {
+    const qtyInput = document.getElementById("detail-qty-" + productId);
+    const quantity = parseInt(qtyInput.value || "1", 10);
+    try {
+        const res = await fetch("/cart/add", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({product_id: productId, quantity: quantity})
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            alert(data.detail || "Ошибка добавления в корзину");
+            return;
+        }
+        alert("Товар добавлен в корзину");
+    } catch (e) {
+        alert("Ошибка: " + e.message);
+    }
+}
+
+async function submitReview(productId) {
+    const rating = parseInt(document.getElementById("review-rating").value, 10);
+    const comment = document.getElementById("review-comment").value;
+    try {
+        const res = await fetch("/reviews", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({product_id: productId, rating: rating, comment: comment})
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            alert(data.detail || "Ошибка отправки отзыва");
+            return;
+        }
+        alert("Отзыв отправлен");
+        window.location.reload();
+    } catch (e) {
+        alert("Ошибка: " + e.message);
+    }
+}
+</script>
+{% endblock %}

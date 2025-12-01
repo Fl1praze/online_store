@@ -214,8 +214,8 @@ async def refresh_token(
     new_access_token = create_access_token({"sub": str(user.id)}, user.password_version)
     new_refresh_token = create_refresh_token({"sub": str(user.id)}, user.password_version)
 
-    response.set_cookie('booking_access_token', new_access_token, httponly=True, max_age=1800)
-    response.set_cookie('booking_refresh_token', new_refresh_token, httponly=True, max_age=604800)
+    response.set_cookie('booking_access_token', new_access_token, httponly=True, max_age=1800, secure=True, samesite="lax")
+    response.set_cookie('booking_refresh_token', new_refresh_token, httponly=True, max_age=604800, secure=True, samesite="lax")
 
     return {
         "message": "Token refreshed",

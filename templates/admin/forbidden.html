@@ -1,0 +1,17 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Доступ запрещён{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>403 – Доступ запрещён</h1>
+    <p class="mt-2 text-muted">
+        У вас нет прав администратора (<code>is_admin = False</code>), поэтому эта страница недоступна.
+    </p>
+    <p class="mt-2 text-sm">
+        Войдите под администратором или измените поле <code>is_admin</code> у нужного пользователя в базе.
+    </p>
+</div>
+{% endblock %}
+
+

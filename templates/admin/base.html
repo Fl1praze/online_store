@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Админка{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #f3f4f6;
+            color: #111827;
+        }
+        header {
+            background: #111827;
+            color: #f9fafb;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header a {
+            color: #e5e7eb;
+            text-decoration: none;
+            margin-right: 16px;
+        }
+        header a:hover {
+            color: #ffffff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 16px 32px;
+        }
+        h1 {
+            margin: 0 0 16px;
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 16px 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            margin-bottom: 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+        th, td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+            font-size: 14px;
+        }
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+        }
+        tr:hover td {
+            background: #f3f4f6;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #111827;
+        }
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 999px;
+            font-size: 11px;
+        }
+        .badge-green {
+            background: #dcfce7;
+            color: #15803d;
+        }
+        .badge-red {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        form.inline {
+            display: inline;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+        .field {
+            margin-bottom: 10px;
+        }
+        .field label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+            padding: 6px 8px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            font-size: 14px;
+        }
+        .field textarea {
+            min-height: 80px;
+        }
+        .mt-2 { margin-top: 8px; }
+        .mt-3 { margin-top: 12px; }
+        .mt-4 { margin-top: 16px; }
+        .flex {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .text-sm { font-size: 13px; }
+        .text-muted { color: #6b7280; }
+        .alert {
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .alert-success {
+            background: #ecfdf5;
+            color: #166534;
+        }
+        .alert-error {
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+        code {
+            background: #e5e7eb;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+<header>
+    <div>
+        <strong>Админка магазина</strong>
+    </div>
+    <nav>
+        <a href="/admin">Главная</a>
+        <a href="/admin/products">Товары</a>
+        <a href="/admin/categories">Категории</a>
+        <a href="/admin/orders">Заказы</a>
+        <a href="/admin/reviews">Отзывы</a>
+    </nav>
+</header>
+<div class="container">
+    {% block content %}{% endblock %}
+</div>
+</body>
+</html>
+
+

@@ -7,6 +7,8 @@ from app.products.dao import ProductsDAO
 from app.users.dependencies import get_current_user
 from app.users.models import Users
 from app.redis_client import redis_client
+from app.orders.dao import OrderDAO, OrderItemDAO
+from sqlalchemy import select, and_
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_session
@@ -24,6 +26,24 @@ async def add_review(
         product = await ProductsDAO.find_by_id(session, review_data.product_id)
         if not product:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+        # Проверяем, заказывал ли пользователь этот товар
+        user_orders = await OrderDAO.find_all(session, user_id=current_user.id)
+        has_ordered = False
+        for order in user_orders:
+            order_items = await OrderItemDAO.find_all(session, order_id=order.id)
+            for item in order_items:
+                if item.product_id == review_data.product_id:
+                    has_ordered = True
+                    break
+            if has_ordered:
+                break
+        
+        if not has_ordered:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Вы можете оставить отзыв только на товар, который вы заказали"
+            )
 
         existing_review = await ReviewsDAO.find_one_or_none(
             session,
@@ -85,6 +105,39 @@ async def get_reviews_for_product(
     ]
     redis_client.setex(cache_key, 600, json.dumps(list_reviews))
     return reviews
+
+
+@router.get("/search")
+async def search_reviews_by_product_name(
+        product_name: str,
+        current_user: Users = Depends(get_current_user),
+        session: AsyncSession = Depends(get_async_session)
+):
+    """Поиск отзывов по названию товара (только для админов)."""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Доступ запрещён. Только для администраторов."
+        )
+    
+    reviews = await ReviewsDAO.find_by_product_name(session, product_name)
+    
+    # Получаем информацию о товарах для каждого отзыва
+    from app.products.dao import ProductsDAO
+    list_reviews = []
+    for review in reviews:
+        product = await ProductsDAO.find_by_id(session, review.product_id)
+        list_reviews.append({
+            'id': review.id,
+            'user_id': review.user_id,
+            'product_id': review.product_id,
+            'product_name': product.name if product else f"Товар #{review.product_id}",
+            'rating': review.rating,
+            'comment': review.comment,
+            'created_at': review.created_at.isoformat() if isinstance(review.created_at,
+                                                                      datetime) else review.created_at
+        })
+    return list_reviews
 
 
 @router.delete('/{review_id}')

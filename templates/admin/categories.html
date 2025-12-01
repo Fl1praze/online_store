@@ -1,0 +1,195 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Админка – категории{% endblock %}
+
+{% block head %}
+<script>
+async function loadCategories() {
+    const statusBox = document.getElementById("categories-status");
+    const tbody = document.getElementById("categories-body");
+    statusBox.textContent = "Загружаю...";
+    tbody.innerHTML = "";
+    try {
+        const res = await fetch("/categories");
+        if (!res.ok) {
+            throw new Error("Ошибка загрузки: " + res.status);
+        }
+        const data = await res.json();
+        const items = data;
+        if (!items.length) {
+            statusBox.textContent = "Категорий нет";
+            return;
+        }
+        for (const c of items) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${c.id}</td>
+                <td>${c.parent_id ?? ""}</td>
+                <td>${c.name}</td>
+                <td>${c.slug}</td>
+                <td>
+                    <span class="badge ${c.is_active ? 'badge-green' : 'badge-red'}">
+                        ${c.is_active ? 'активна' : 'выключена'}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-secondary btn-sm" onclick="fillEditCategory('${c.slug}', ${c.parent_id ?? 'null'})">Редактировать</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteCategory('${c.slug}')">Удалить</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+        statusBox.textContent = "";
+    } catch (e) {
+        statusBox.textContent = e.message;
+    }
+}
+
+function fillEditCategory(slug, parentId) {
+    document.getElementById("edit-category-slug").value = slug;
+    document.getElementById("edit-parent-id").value = parentId || "";
+    document.getElementById("edit-section").scrollIntoView({behavior: "smooth"});
+}
+
+async function deleteCategory(slug) {
+    if (!confirm("Точно удалить (деактивировать) категорию " + slug + "?")) return;
+    const statusBox = document.getElementById("categories-status");
+    try {
+        const res = await fetch("/categories/" + encodeURIComponent(slug), {
+            method: "DELETE"
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.detail || ("Ошибка удаления: " + res.status));
+        }
+        statusBox.textContent = "Категория удалена";
+        await loadCategories();
+    } catch (e) {
+        statusBox.textContent = e.message;
+    }
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+    loadCategories();
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<h1>Категории</h1>
+
+<div class="card">
+    <div id="categories-status" class="text-sm text-muted"></div>
+    <table class="mt-2">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Родитель</th>
+            <th>Название</th>
+            <th>Slug</th>
+            <th>Статус</th>
+            <th>Действия</th>
+        </tr>
+        </thead>
+        <tbody id="categories-body"></tbody>
+    </table>
+</div>
+
+<div class="grid mt-4">
+    <div class="card">
+        <h2>Создать категорию</h2>
+        <p class="text-sm text-muted mt-1">
+            Вызывает ваш POST <code>/categories</code>. Для главной категории не заполняйте <code>parent_id</code>.
+        </p>
+        <form class="mt-2" onsubmit="event.preventDefault(); submitCreateCategory();">
+            <div class="field">
+                <label>Название</label>
+                <input type="text" id="create-name" required>
+            </div>
+            <div class="field">
+                <label>ID родительской категории (опционально)</label>
+                <input type="number" id="create-parent-id">
+            </div>
+            <button class="btn btn-primary mt-2" type="submit">Создать</button>
+        </form>
+        <script>
+        async function submitCreateCategory() {
+            const body = {
+                name: document.getElementById("create-name").value,
+                parent_id: document.getElementById("create-parent-id").value || null
+            };
+            const statusBox = document.getElementById("categories-status");
+            statusBox.textContent = "Создаю категорию...";
+            try {
+                const res = await fetch("/categories", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(body)
+                });
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    throw new Error(data.detail || ("Ошибка создания: " + res.status));
+                }
+                statusBox.textContent = "Категория создана";
+                document.getElementById("create-name").value = "";
+                document.getElementById("create-parent-id").value = "";
+                await loadCategories();
+            } catch (e) {
+                statusBox.textContent = e.message;
+            }
+        }
+        </script>
+    </div>
+
+    <div class="card" id="edit-section">
+        <h2>Редактировать категорию</h2>
+        <p class="text-sm text-muted mt-1">
+            Вызывает ваш PUT <code>/categories/{category_slug}</code>.
+        </p>
+        <form class="mt-2" method="post"
+              onsubmit="event.preventDefault(); submitEditCategory();">
+            <div class="field">
+                <label>Slug категории</label>
+                <input type="text" id="edit-category-slug" required>
+            </div>
+            <div class="field">
+                <label>Новое название</label>
+                <input type="text" id="edit-name" required>
+            </div>
+            <div class="field">
+                <label>ID родительской категории (может быть пустым)</label>
+                <input type="number" id="edit-parent-id">
+            </div>
+            <button class="btn btn-primary mt-2" type="submit">Сохранить</button>
+        </form>
+        <script>
+        async function submitEditCategory() {
+            const slug = document.getElementById("edit-category-slug").value;
+            const body = {
+                name: document.getElementById("edit-name").value,
+                parent_id: document.getElementById("edit-parent-id").value || null
+            };
+            const statusBox = document.getElementById("categories-status");
+            statusBox.textContent = "Обновляю категорию...";
+            try {
+                const res = await fetch("/categories/" + encodeURIComponent(slug), {
+                    method: "PUT",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(body)
+                });
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    throw new Error(data.detail || ("Ошибка обновления: " + res.status));
+                }
+                statusBox.textContent = "Категория обновлена";
+                await loadCategories();
+            } catch (e) {
+                statusBox.textContent = e.message;
+            }
+        }
+        </script>
+    </div>
+</div>
+{% endblock %}
+
+

@@ -1,0 +1,51 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Админка – главная{% endblock %}
+
+{% block content %}
+<h1>Добро пожаловать, {{ user.username or user.email }}</h1>
+
+<div class="grid mt-3">
+    <div class="card">
+        <h2>Товары</h2>
+        <p class="text-sm text-muted mt-2">
+            Просмотр, создание, редактирование и деактивация товаров.
+        </p>
+        <div class="mt-3">
+            <a href="/admin/products" class="btn btn-primary">Перейти к товарам</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Категории</h2>
+        <p class="text-sm text-muted mt-2">
+            Управление древом категорий и их активностью.
+        </p>
+        <div class="mt-3">
+            <a href="/admin/categories" class="btn btn-primary">Перейти к категориям</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Заказы</h2>
+        <p class="text-sm text-muted mt-2">
+            Просмотр всех заказов, изменение статуса (отмена).
+        </p>
+        <div class="mt-3">
+            <a href="/admin/orders" class="btn btn-primary">Перейти к заказам</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Отзывы</h2>
+        <p class="text-sm text-muted mt-2">
+            Просмотр и удаление отзывов.
+        </p>
+        <div class="mt-3">
+            <a href="/admin/reviews" class="btn btn-primary">Перейти к отзывам</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

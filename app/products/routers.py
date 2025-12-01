@@ -1,7 +1,7 @@
 import json
 from http.client import HTTPException
 
-from fastapi import APIRouter,HTTPException,status,File,UploadFile,Depends
+from fastapi import APIRouter, HTTPException, status, File, UploadFile, Depends, Query, Form
 from app.products.dao import ProductsDAO
 from app.category.dao import CategoriesDAO
 from app.products.schemas import CreateProduct,ResponseProduct
@@ -11,17 +11,18 @@ from app.redis_client import redis_client
 from app.database import get_async_session
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.users.dependencies import get_current_user
+from app.products.schemas import ProductList, ProductFilter
 router = APIRouter(prefix='/products', tags=['products'])
 
 
 # with salary+redis
 @router.post('/')
 async def create_product(
-        name: str,
-        description: str,
-        price: int,
-        stock: int,
-        category_id: int,
+        name: str = Form(...),
+        description: str = Form(...),
+        price: int = Form(...),
+        stock: int = Form(...),
+        category_id: int = Form(...),
         small_image: UploadFile = File(...),
         large_image: UploadFile = File(...),
         current_user = Depends(get_current_user),
@@ -69,14 +70,33 @@ async def create_product(
 # with redis cache(memory)
 @router.get('/')
 async def all_products(
+        filters: ProductFilter = Depends(),
         session: AsyncSession = Depends(get_async_session)
 ):
-    cache_key = 'products'
+    
+    if filters.min_price and filters.max_price and filters.min_price > filters.max_price:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Минимальная цена не может быть больше максимальной"
+        )
+    
+    cache_key_parts = [
+        f"page={filters.page}",
+        f"size={filters.page_size}",
+        f"cat={filters.category_id}",
+        f"min={filters.min_price}",
+        f"max={filters.max_price}",
+        f"stock={filters.in_stock}",
+        f"name={filters.name}",
+    ]
+
+    cache_key = cache_key = f"products:{':'.join(cache_key_parts)}"
     cached_value = redis_client.get(cache_key)
+    
     if cached_value:
         return json.loads(cached_value)
 
-    products = await ProductsDAO.get_active_stock_products(session)
+    products = await ProductsDAO.find_all_with_filters(session,filters)
     if not products:
         raise HTTPException(status_code=404, detail="There are no products")
 
@@ -94,10 +114,17 @@ async def all_products(
             "small_image": p.small_image,
             "large_image": p.large_image,
         }
-        for p in products
+        for p in products["items"]
     ]
-    redis_client.setex(cache_key, 600, json.dumps(products_list))
-    return products
+
+    response_data = {
+        "items": products_list,
+        "total": products["total"],        
+        "page": products["page"],           
+        "page_size": products["page_size"]  
+    }
+    redis_client.setex(cache_key, 600, json.dumps(response_data))
+    return response_data
 
 
 # with redis(memory)
@@ -181,11 +208,11 @@ async def all_product_by_category_slug(
 @router.put('/{product_slug}')
 async def update_product(
         product_slug: str,
-        name: str,
-        description: str,
-        price: int,
-        stock: int,
-        category_id: int,
+        name: str = Form(...),
+        description: str = Form(...),
+        price: int = Form(...),
+        stock: int = Form(...),
+        category_id: int = Form(...),
         small_image: UploadFile = File(...),
         large_image: UploadFile = File(...),
         current_user = Depends(get_current_user),
@@ -221,10 +248,15 @@ async def update_product(
         )
 
 
+    # очищаем кэш по конкретному товару
     redis_client.delete(f'product:{product_slug}')
     redis_client.delete(f'product:{slugify(name)}')
-    redis_client.delete(f'category: {product_slug}')
-    redis_client.delete('products')
+    # очищаем возможный кэш категорий
+    redis_client.delete(f'category:{product_slug}')
+    # удаляем все ключи, связанные со списками товаров
+    product_list_keys = redis_client.keys('products:*')
+    if product_list_keys:
+        redis_client.delete(*product_list_keys)
 
     return {"message": 'Product update is successful'}
 
@@ -243,8 +275,13 @@ async def delete_product(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There is no product found")
         await ProductsDAO.update_by_slug(session, product_slug, is_active=False)
 
+    # очищаем кэш по конкретному товару
     redis_client.delete(f'product:{product_slug}')
-    redis_client.delete(f'category: {product_slug}')  # ???
-    redis_client.delete('products')
+    # возможный кэш категорий
+    redis_client.delete(f'category:{product_slug}')
+    # удаляем все ключи, связанные со списками товаров
+    product_list_keys = redis_client.keys('products:*')
+    if product_list_keys:
+        redis_client.delete(*product_list_keys)
 
     return {'message': 'Product delete is successful'}

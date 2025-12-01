@@ -55,6 +55,12 @@ async def create_category(
         else:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Category already created')
 
+    # очищаем кэш всех категорий и возможного кэша по слагу
+    redis_client.delete('all_categories')
+    if data.parent_id is None:
+        # на всякий случай чистим кэш корневых категорий по слагу
+        redis_client.delete(f"category:{slugify(data.name)}")
+
     return {"message": "Category created successfully"}
 
 

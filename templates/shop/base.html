@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Магазин{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Tailwind CDN для быстрой стилизации -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #f3f4f6;
+            color: #111827;
+        }
+        a { color: inherit; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        header {
+            background: #111827;
+            color: #f9fafb;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            font-weight: 600;
+            font-size: 18px;
+        }
+        .nav {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            font-size: 14px;
+        }
+        .nav a {
+            color: #e5e7eb;
+        }
+        .nav a:hover {
+            color: #ffffff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 16px 32px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 260px minmax(0, 1fr);
+            gap: 24px;
+        }
+        @media (max-width: 900px) {
+            .layout-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 16px 18px;
+            box-shadow: 0 4px 18px rgba(15,23,42,0.10);
+        }
+        .product-card {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            cursor: pointer;
+        }
+        .product-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 28px rgba(15,23,42,0.14);
+        }
+        .product-image {
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #e5e7eb;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 999px;
+            font-size: 11px;
+        }
+        .badge-green {
+            background: #dcfce7;
+            color: #15803d;
+        }
+        .badge-red {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #111827;
+        }
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+        .btn-link {
+            background: transparent;
+            color: #2563eb;
+            padding: 0;
+        }
+        .btn-ghost {
+            background: transparent;
+            color: #111827;
+            border-radius: 999px;
+            padding: 6px 10px;
+        }
+        .btn-ghost:hover {
+            background: #e5e7eb;
+        }
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        .price {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .muted {
+            color: #6b7280;
+            font-size: 13px;
+        }
+        .field {
+            margin-bottom: 10px;
+        }
+        .field label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+            padding: 6px 8px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .field textarea {
+            min-height: 80px;
+        }
+        .flex {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .flex-between {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .mt-1 { margin-top: 4px; }
+        .mt-2 { margin-top: 8px; }
+        .mt-3 { margin-top: 12px; }
+        .mt-4 { margin-top: 16px; }
+        .mt-5 { margin-top: 20px; }
+        .mb-1 { margin-bottom: 4px; }
+        .mb-2 { margin-bottom: 8px; }
+        .text-sm { font-size: 13px; }
+        .text-center { text-align: center; }
+        .link-muted { color: #6b7280; font-size: 13px; }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #e5e7eb;
+            font-size: 12px;
+        }
+        .alert {
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .alert-success {
+            background: #ecfdf5;
+            color: #166534;
+        }
+        .alert-error {
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+        .btn-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            cursor: pointer;
+        }
+        .btn-icon:hover {
+            background: #f3f4f6;
+        }
+        .search-form {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 24px;
+            flex: 1;
+            max-width: 500px;
+        }
+        .search-input {
+            flex: 1;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid #6b7280;
+            font-size: 14px;
+            background-color: #ffffff;
+            color: #111827;
+        }
+        .search-input::placeholder {
+            color: #9ca3af;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-slate-100 text-slate-900">
+<header class="bg-slate-900 text-slate-50 shadow-md">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center gap-6 py-3">
+        <a href="/" class="logo text-xl font-semibold tracking-tight">Магазин</a>
+        <a href="/" class="hidden sm:inline-block link-muted">Каталог</a>
+        <form action="/" method="get" class="search-form">
+            <input
+                type="search"
+                name="name"
+                placeholder="Поиск по товарам"
+                class="search-input"
+                value="{% if filters is defined and filters.name %}{{ filters.name }}{% endif %}"
+            >
+            <button type="submit" class="btn btn-secondary btn-sm">Найти</button>
+        </form>
+        <nav class="nav ml-auto">
+            <a href="/cart">Корзина</a>
+            {% if user %}
+                <a href="/profile">Профиль</a>
+                <a href="#" onclick="logoutUser(); return false;">Выйти</a>
+            {% else %}
+                <a href="/auth/login">Войти</a>
+                <a href="/auth/register">Регистрация</a>
+            {% endif %}
+        </nav>
+    </div>
+</header>
+<div class="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    {% block content %}{% endblock %}
+</div>
+<script>
+// Автоматическое обновление токена
+async function refreshToken() {
+    try {
+        console.log("🔄 Обновляю токен...");
+        const res = await fetch("/auth/refresh", {
+            method: "POST",
+            credentials: "include", // важно для отправки cookies
+            headers: {
+                "Content-Type": "application/json"
+            }
+        });
+        if (res.ok) {
+            console.log("✅ Токен успешно обновлён");
+            return true;
+        } else {
+            const error = await res.json().catch(() => ({}));
+            console.error("❌ Ошибка обновления токена:", res.status, error);
+            // Если refresh token невалиден, удаляем его из cookies
+            if (res.status === 401) {
+                console.log("⚠️ Refresh token невалиден, очищаю cookies");
+                document.cookie = "booking_refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                document.cookie = "booking_access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            }
+            return false;
+        }
+    } catch (e) {
+        console.error("❌ Ошибка обновления токена:", e);
+        return false;
+    }
+}
+
+// Перехватчик для автоматического обновления токена при 401
+const originalFetch = window.fetch;
+let isRefreshing = false;
+let refreshPromise = null;
+
+window.fetch = async function(...args) {
+    let response = await originalFetch(...args);
+    
+    // Получаем URL запроса
+    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+    
+    // Если получили 401 и это не запрос на refresh/login, пытаемся обновить токен
+    if (response.status === 401 && !url.includes("/auth/refresh") && !url.includes("/auth/login") && !url.includes("/auth/register")) {
+        // Если уже обновляем токен, ждём завершения
+        if (isRefreshing && refreshPromise) {
+            await refreshPromise;
+            // Повторяем оригинальный запрос
+            response = await originalFetch(...args);
+        } else if (!isRefreshing) {
+            // Начинаем обновление токена
+            isRefreshing = true;
+            refreshPromise = refreshToken();
+            const refreshed = await refreshPromise;
+            isRefreshing = false;
+            refreshPromise = null;
+            
+            if (refreshed) {
+                // Повторяем оригинальный запрос
+                response = await originalFetch(...args);
+            } else {
+                // Если не удалось обновить, перенаправляем на логин
+                window.location.href = "/auth/login";
+            }
+        }
+    }
+    
+    return response;
+};
+
+// Периодическое обновление токена (каждые 25 минут, до истечения access token)
+setInterval(async () => {
+    console.log("⏰ Периодическое обновление токена (каждые 25 минут)");
+    await refreshToken();
+}, 25 * 60 * 1000); // 25 минут
+
+// Функция для получения cookie по имени
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
+// Проверяем и обновляем токен при загрузке страницы (если есть refresh token)
+// Выполняем сразу, не ждём DOMContentLoaded, чтобы обновить токен до других запросов
+(function() {
+    const refreshTokenValue = getCookie("booking_refresh_token");
+    console.log("📋 Проверка refresh token при загрузке страницы...");
+    console.log("🔑 Refresh token найден:", refreshTokenValue ? "да" : "нет");
+    
+    if (refreshTokenValue) {
+        console.log("🚀 Начинаю обновление токена при загрузке страницы...");
+        // Пытаемся обновить токен сразу при загрузке страницы
+        refreshToken().catch(e => {
+            console.error("❌ Ошибка при обновлении токена при загрузке:", e);
+        });
+    } else {
+        console.log("⚠️ Refresh token не найден в cookies");
+    }
+})();
+
+async function logoutUser() {
+    try {
+        const res = await fetch("/auth/logout", { method: "POST" });
+        // даже если ответ не 200, просто уходим на главную
+    } catch (e) {
+        console.error(e);
+    }
+    window.location.href = "/";
+}
+</script>
+</body>
+</html>
+
+
