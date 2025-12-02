@@ -118,15 +118,16 @@
 async function removeItem(productId) {
     if (!confirm("Удалить товар из корзины?")) return;
     try {
-        const res = await fetch("/cart/remove/" + productId, { method: "DELETE" });
+        const res = await fetch("/cart/remove/" + productId, { method: "DELETE", credentials: "include" });
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            alert(data.detail || "Ошибка удаления");
+            showNotification(data.detail || "Ошибка удаления", "error");
             return;
         }
-        window.location.reload();
+        showNotification("Товар удалён из корзины", "success");
+        setTimeout(() => window.location.reload(), 1000);
     } catch (e) {
-        alert("Ошибка: " + e.message);
+        showNotification("Ошибка: " + e.message, "error");
     }
 }
 
@@ -145,7 +146,7 @@ async function submitOrder() {
     const payment = document.getElementById("order-payment").value;
     
     if (!address) {
-        alert("Пожалуйста, введите адрес доставки");
+        showNotification("Пожалуйста, введите адрес доставки", "warning");
         return;
     }
     
@@ -162,14 +163,14 @@ async function submitOrder() {
         
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            alert(data.detail || "Ошибка оформления заказа");
+            showNotification(data.detail || "Ошибка оформления заказа", "error");
             return;
         }
         
-        alert("Заказ успешно оформлен!");
-        window.location.href = "/profile";
+        showNotification("Заказ успешно оформлен!", "success");
+        setTimeout(() => window.location.href = "/profile", 1500);
     } catch (e) {
-        alert("Ошибка: " + e.message);
+        showNotification("Ошибка: " + e.message, "error");
     }
 }
 </script>

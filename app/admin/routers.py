@@ -5,7 +5,6 @@ from fastapi.templating import Jinja2Templates
 from app.users.dependencies import get_current_user
 from app.users.models import Users
 
-
 router = APIRouter(prefix="/admin", tags=["Admin"])
 templates = Jinja2Templates(directory="templates")
 
@@ -100,6 +99,24 @@ async def admin_reviews_page(
 
     return templates.TemplateResponse(
         "admin/reviews.html",
+        {"request": request, "user": current_user},
+    )
+
+
+@router.get("/users", response_class=HTMLResponse)
+async def admin_users_page(
+    request: Request,
+    current_user: Users = Depends(get_current_user),
+):
+    if not current_user.is_admin:
+        return templates.TemplateResponse(
+            "admin/forbidden.html",
+            {"request": request, "user": current_user},
+            status_code=403,
+        )
+
+    return templates.TemplateResponse(
+        "admin/users.html",
         {"request": request, "user": current_user},
     )
 

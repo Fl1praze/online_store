@@ -178,11 +178,99 @@
         <a href="/admin/categories">Категории</a>
         <a href="/admin/orders">Заказы</a>
         <a href="/admin/reviews">Отзывы</a>
+        <a href="/admin/users">Пользователи</a>
     </nav>
 </header>
 <div class="container">
     {% block content %}{% endblock %}
 </div>
+<script>
+// Автоматическое обновление токена
+async function refreshToken() {
+    try {
+        console.log("🔄 Обновляю токен...");
+        const res = await fetch("/auth/refresh", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+                "Content-Type": "application/json"
+            }
+        });
+        if (res.ok) {
+            console.log("✅ Токен успешно обновлён");
+            return true;
+        } else {
+            const error = await res.json().catch(() => ({}));
+            console.error("❌ Ошибка обновления токена:", res.status, error);
+            if (res.status === 401) {
+                console.log("⚠️ Refresh token невалиден, очищаю cookies");
+                document.cookie = "booking_refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                document.cookie = "booking_access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            }
+            return false;
+        }
+    } catch (e) {
+        console.error("❌ Ошибка обновления токена:", e);
+        return false;
+    }
+}
+
+// Функция для получения cookie по имени
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
+// Перехватчик для автоматического обновления токена при 401
+const originalFetch = window.fetch;
+let isRefreshing = false;
+let refreshPromise = null;
+
+window.fetch = async function(...args) {
+    let response = await originalFetch(...args);
+    
+    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+    
+    // Если получили 401 и это не запрос на refresh/login, пытаемся обновить токен
+    if (response.status === 401 && !url.includes("/auth/refresh") && !url.includes("/auth/login") && !url.includes("/auth/register")) {
+        if (isRefreshing && refreshPromise) {
+            await refreshPromise;
+            response = await originalFetch(...args);
+        } else if (!isRefreshing) {
+            isRefreshing = true;
+            refreshPromise = refreshToken();
+            const refreshed = await refreshPromise;
+            isRefreshing = false;
+            refreshPromise = null;
+            
+            if (refreshed) {
+                response = await originalFetch(...args);
+            } else {
+                window.location.href = "/auth/login";
+            }
+        }
+    }
+    
+    return response;
+};
+
+// Обновляем токен при загрузке страницы
+(async function() {
+    const refreshTokenValue = getCookie("booking_refresh_token");
+    if (refreshTokenValue) {
+        console.log("🚀 Обновляю access token при загрузке страницы...");
+        await refreshToken();
+    }
+})();
+
+// Периодическое обновление токена (каждые 25 минут)
+setInterval(async () => {
+    console.log("⏰ Периодическое обновление токена");
+    await refreshToken();
+}, 25 * 60 * 1000);
+</script>
 </body>
 </html>
 

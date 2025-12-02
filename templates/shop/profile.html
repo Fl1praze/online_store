@@ -104,9 +104,18 @@
                         <div class="text-sm text-gray-600 mb-2">
                             <strong>Адрес:</strong> {{ order.shipping_address }}
                         </div>
-                        <div class="text-sm text-gray-600">
+                        <div class="text-sm text-gray-600 mb-3">
                             <strong>Способ оплаты:</strong> {{ order.payment_method }}
                         </div>
+                        {% if order.status == 'pending' or order.status == 'processing' %}
+                            <div class="mb-3">
+                                <button data-order-id="{{ order.id }}" 
+                                        onclick="cancelOrder(this.dataset.orderId)" 
+                                        class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors">
+                                    Отменить заказ
+                                </button>
+                            </div>
+                        {% endif %}
                         {% if order.items %}
                             <div class="mt-3 pt-3 border-t border-gray-200">
                                 <div class="text-xs text-gray-500 mb-2 font-medium">Товары:</div>
@@ -147,17 +156,18 @@ async function updateProfile() {
         const res = await fetch("/auth/change_data", {
             method: "PUT",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
+            credentials: "include"
         });
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            alert(data.detail || "Ошибка обновления данных");
+            showNotification(data.detail || "Ошибка обновления данных", "error");
             return;
         }
-        alert("Данные обновлены");
-        window.location.reload();
+        showNotification("Данные обновлены", "success");
+        setTimeout(() => window.location.reload(), 1000);
     } catch (e) {
-        alert("Ошибка: " + e.message);
+        showNotification("Ошибка: " + e.message, "error");
     }
 }
 
@@ -170,18 +180,46 @@ async function changePassword() {
         const res = await fetch("/auth/change_pwd", {
             method: "PUT",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
+            credentials: "include"
         });
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            alert(data.detail || "Ошибка смены пароля");
+            showNotification(data.detail || "Ошибка смены пароля", "error");
             return;
         }
-        alert("Пароль изменён");
+        showNotification("Пароль изменён", "success");
         document.getElementById("old-password").value = "";
         document.getElementById("new-password").value = "";
     } catch (e) {
-        alert("Ошибка: " + e.message);
+        showNotification("Ошибка: " + e.message, "error");
+    }
+}
+
+async function cancelOrder(orderId) {
+    const orderIdNum = parseInt(orderId, 10);
+    if (isNaN(orderIdNum)) {
+        showNotification("Ошибка: неверный ID заказа", "error");
+        return;
+    }
+    if (!confirm("Вы уверены, что хотите отменить заказ #" + orderIdNum + "?")) {
+        return;
+    }
+    try {
+        const res = await fetch(`/orders/${orderIdNum}/cancel`, {
+            method: "PATCH",
+            headers: {"Content-Type": "application/json"},
+            credentials: "include"
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            showNotification(data.detail || "Ошибка отмены заказа", "error");
+            return;
+        }
+        showNotification("Заказ успешно отменён", "success");
+        setTimeout(() => window.location.reload(), 1000);
+    } catch (e) {
+        showNotification("Ошибка: " + e.message, "error");
     }
 }
 </script>

@@ -126,12 +126,12 @@ async function addToCartDetail(productId) {
         });
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            alert(data.detail || "Ошибка добавления в корзину");
+            showNotification(data.detail || "Ошибка добавления в корзину", "error");
             return;
         }
-        alert("Товар добавлен в корзину");
+        showNotification("Товар добавлен в корзину", "success");
     } catch (e) {
-        alert("Ошибка: " + e.message);
+        showNotification("Ошибка: " + e.message, "error");
     }
 }
 
@@ -146,13 +146,13 @@ async function submitReview(productId) {
         });
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            alert(data.detail || "Ошибка отправки отзыва");
+            showNotification(data.detail || "Ошибка отправки отзыва", "error");
             return;
         }
-        alert("Отзыв отправлен");
-        window.location.reload();
+        showNotification("Отзыв отправлен", "success");
+        setTimeout(() => window.location.reload(), 1000);
     } catch (e) {
-        alert("Ошибка: " + e.message);
+        showNotification("Ошибка: " + e.message, "error");
     }
 }
 </script>

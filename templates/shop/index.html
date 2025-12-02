@@ -24,6 +24,44 @@ function applyFilters() {
 {% endblock %}
 
 {% block content %}
+<!-- Сообщения об успехе/ошибке -->
+<div id="verification-message" class="mb-4"></div>
+
+<script>
+// Проверяем параметры URL для отображения сообщений
+(function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const messageDiv = document.getElementById("verification-message");
+    
+    if (urlParams.get("success") === "email_verified") {
+        messageDiv.innerHTML = '<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert"><strong class="font-bold">Успех!</strong><span class="block sm:inline"> Email успешно подтверждён. Теперь вы можете войти в систему.</span></div>';
+        // Удаляем параметр из URL через 5 секунд
+        setTimeout(() => {
+            const newUrl = window.location.pathname + window.location.search.replace(/[?&]success=email_verified/, '').replace(/^&/, '?');
+            window.history.replaceState({}, '', newUrl);
+            messageDiv.innerHTML = '';
+        }, 5000);
+    } else if (urlParams.get("error")) {
+        const error = urlParams.get("error");
+        let errorMessage = "Произошла ошибка при подтверждении email.";
+        if (error === "invalid_token") {
+            errorMessage = "Неверный токен подтверждения.";
+        } else if (error === "expired_token") {
+            errorMessage = "Ссылка подтверждения истекла. Пожалуйста, запросите новую ссылку.";
+        } else if (error === "user_not_found") {
+            errorMessage = "Пользователь не найден.";
+        }
+        messageDiv.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert"><strong class="font-bold">Ошибка!</strong><span class="block sm:inline"> ${errorMessage}</span></div>`;
+        // Удаляем параметр из URL через 5 секунд
+        setTimeout(() => {
+            const newUrl = window.location.pathname + window.location.search.replace(/[?&]error=[^&]*/, '').replace(/^&/, '?');
+            window.history.replaceState({}, '', newUrl);
+            messageDiv.innerHTML = '';
+        }, 5000);
+    }
+})();
+</script>
+
 <div class="flex gap-6 mt-6">
     <!-- Сайдбар с фильтрами -->
     <aside class="w-64 flex-shrink-0 bg-white rounded-lg shadow-sm p-5 h-fit sticky top-6 self-start">
@@ -189,12 +227,12 @@ async function addToCart(productId) {
         });
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            alert(data.detail || "Ошибка добавления в корзину");
+            showNotification(data.detail || "Ошибка добавления в корзину", "error");
             return;
         }
-        alert("Товар добавлен в корзину");
+        showNotification("Товар добавлен в корзину", "success");
     } catch (e) {
-        alert("Ошибка: " + e.message);
+        showNotification("Ошибка: " + e.message, "error");
     }
 }
 

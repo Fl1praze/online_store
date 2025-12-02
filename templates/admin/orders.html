@@ -10,7 +10,7 @@ async function loadOrders() {
     statusBox.textContent = "Загружаю...";
     tbody.innerHTML = "";
     try {
-        const res = await fetch("/orders/get_all_orders");
+        const res = await fetch("/orders/get_all_orders", { credentials: "include" });
         if (!res.ok) {
             throw new Error("Ошибка загрузки: " + res.status);
         }
@@ -25,7 +25,7 @@ async function loadOrders() {
             const itemsText = items.map(i => `${i.product_id} x${i.quantity}`).join(", ");
             tr.innerHTML = `
                 <td>${o.id}</td>
-                <td>${o.user_id}</td>
+                <td>${o.user_email || o.user_id || "N/A"}</td>
                 <td>${o.total_amount}</td>
                 <td>${o.status}</td>
                 <td>${o.shipping_address || ""}</td>
@@ -49,7 +49,7 @@ async function cancelOrder(id) {
     if (!confirm("Отменить заказ #" + id + "?")) return;
     const statusBox = document.getElementById("orders-status");
     try {
-        const res = await fetch(`/orders/${id}/cancel`, { method: "PATCH" });
+        const res = await fetch(`/orders/${id}/cancel`, { method: "PATCH", credentials: "include" });
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
             throw new Error(data.detail || ("Ошибка отмены: " + res.status));

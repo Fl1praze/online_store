@@ -23,9 +23,21 @@ class ChangeData(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    email: str
-    username: str
-    is_active: bool
+    email: str | None = None
+    username: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    is_active: bool = False
+    is_admin: bool = False
 
     class Config:
         from_attributes = True
+
+
+class AdminUpdateUser(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    username: str | None = None
+    email: str | None = None
+    is_active: bool | None = None
+    is_admin: bool | None = None

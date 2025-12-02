@@ -281,7 +281,55 @@
 <div class="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     {% block content %}{% endblock %}
 </div>
+
+<!-- Контейнер для уведомлений -->
+<div id="notification-container" class="notification-container"></div>
+
 <script>
+// Система уведомлений
+function showNotification(message, type = 'success', title = null) {
+    const container = document.getElementById('notification-container');
+    if (!container) return;
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    
+    const icons = {
+        success: '✓',
+        error: '✕',
+        info: 'ℹ',
+        warning: '⚠'
+    };
+    
+    const titles = {
+        success: title || 'Успешно',
+        error: title || 'Ошибка',
+        info: title || 'Информация',
+        warning: title || 'Внимание'
+    };
+    
+    notification.innerHTML = `
+        <div class="notification-icon">${icons[type] || icons.info}</div>
+        <div class="notification-content">
+            <div class="notification-title">${titles[type]}</div>
+            <div class="notification-message">${message}</div>
+        </div>
+        <button class="notification-close" onclick="this.closest('.notification').remove()">×</button>
+    `;
+    
+    container.appendChild(notification);
+    
+    // Автоматическое удаление через 4 секунды
+    setTimeout(() => {
+        notification.classList.add('hiding');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 300);
+    }, 4000);
+}
+
 // Автоматическое обновление токена
 async function refreshToken() {
     try {
@@ -368,17 +416,27 @@ function getCookie(name) {
 
 // Проверяем и обновляем токен при загрузке страницы (если есть refresh token)
 // Выполняем сразу, не ждём DOMContentLoaded, чтобы обновить токен до других запросов
-(function() {
+(async function() {
     const refreshTokenValue = getCookie("booking_refresh_token");
-    console.log("📋 Проверка refresh token при загрузке страницы...");
-    console.log("🔑 Refresh token найден:", refreshTokenValue ? "да" : "нет");
+    const accessTokenValue = getCookie("booking_access_token");
     
+    console.log("📋 Проверка токенов при загрузке страницы...");
+    console.log("🔑 Refresh token найден:", refreshTokenValue ? "да" : "нет");
+    console.log("🔑 Access token найден:", accessTokenValue ? "да" : "нет");
+    
+    // Если есть refresh token, всегда обновляем access token при загрузке страницы
     if (refreshTokenValue) {
-        console.log("🚀 Начинаю обновление токена при загрузке страницы...");
-        // Пытаемся обновить токен сразу при загрузке страницы
-        refreshToken().catch(e => {
+        console.log("🚀 Обновляю access token при загрузке страницы...");
+        try {
+            const refreshed = await refreshToken();
+            if (refreshed) {
+                console.log("✅ Access token успешно обновлён при загрузке страницы");
+            } else {
+                console.log("⚠️ Не удалось обновить токен, но продолжаем работу");
+            }
+        } catch (e) {
             console.error("❌ Ошибка при обновлении токена при загрузке:", e);
-        });
+        }
     } else {
         console.log("⚠️ Refresh token не найден в cookies");
     }

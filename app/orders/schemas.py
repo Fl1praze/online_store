@@ -26,6 +26,9 @@ class OrderResponse(BaseModel):
     payment_method: str
     created_at: datetime
     items: list[OrderItemResponse]
+    user_id: int | None = None
+    user_email: str | None = None
+    user_username: str | None = None
 
     class Config:
         from_attributes = True

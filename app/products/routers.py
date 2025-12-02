@@ -1,7 +1,7 @@
 import json
 from http.client import HTTPException
 
-from fastapi import APIRouter, HTTPException, status, File, UploadFile, Depends, Query, Form
+from fastapi import APIRouter, HTTPException, status, File, UploadFile, Depends, Query, Form, Request
 from app.products.dao import ProductsDAO
 from app.category.dao import CategoriesDAO
 from app.products.schemas import CreateProduct,ResponseProduct
@@ -12,6 +12,7 @@ from app.database import get_async_session
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.users.dependencies import get_current_user
 from app.products.schemas import ProductList, ProductFilter
+from app.security.rate_limiter import limiter, SEARCH_LIMIT
 router = APIRouter(prefix='/products', tags=['products'])
 
 
@@ -69,7 +70,9 @@ async def create_product(
 
 # with redis cache(memory)
 @router.get('/')
+@limiter.limit(SEARCH_LIMIT)
 async def all_products(
+        request: Request,
         filters: ProductFilter = Depends(),
         session: AsyncSession = Depends(get_async_session)
 ):

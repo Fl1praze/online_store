@@ -1,10 +1,12 @@
 import json
 
 from fastapi import APIRouter, Response, Depends, HTTPException,status,Request
+from fastapi.responses import RedirectResponse
 from jose import jwt,JWTError
+from sqlalchemy.exc import IntegrityError
 from app.users.auth import get_password_hash, verify_password, create_access_token,create_refresh_token,create_email_verification_token
 from app.users.dao import UsersDAO
-from app.users.schemas import CreateUser,LoginUser,ChangePasswordRequest,ChangeData
+from app.users.schemas import CreateUser,LoginUser,ChangePasswordRequest,ChangeData,UserResponse,AdminUpdateUser
 from app.users.models import Users
 from app.users.dependencies import get_current_user
 from app.config import settings
@@ -12,31 +14,55 @@ from app.tasks import send_verification_email_task
 from app.redis_client import redis_client
 from app.database import get_async_session
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.security.rate_limiter import limiter, REGISTER_LIMIT, LOGIN_LIMIT
+
 router = APIRouter(prefix='/auth',tags =['Auth & Users '])
 
 
 @router.post('/register')
+@limiter.limit(REGISTER_LIMIT)
 async def register_user(
+        request: Request,
         user_data: CreateUser,
         session: AsyncSession = Depends(get_async_session)
 ):
+    # Нормализуем данные перед проверкой
+    normalized_username = user_data.username.capitalize()
+    normalized_first_name = user_data.first_name.capitalize()
+    normalized_last_name = user_data.last_name.capitalize()
+    
     async with session.begin():
         try_user = await UsersDAO.find_one_or_none(session, email=user_data.email)
         if try_user:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Пользователь c такой почтой  существует')
-        try_username = await UsersDAO.find_one_or_none(session, username=user_data.username)
+        
+        # Проверяем username с учётом нормализации
+        try_username = await UsersDAO.find_one_or_none(session, username=normalized_username)
         if try_username:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Имя пользователя занято')
 
         hashed_password = get_password_hash(user_data.password)
-        await UsersDAO.add(
-            session,  # Передали сессию
-            email=user_data.email,
-            hashed_password=hashed_password,
-            first_name=user_data.first_name.capitalize(),
-            last_name=user_data.last_name.capitalize(),
-            username=user_data.username.capitalize()
-        )
+        
+        try:
+            await UsersDAO.add(
+                session,  # Передали сессию
+                email=user_data.email,
+                hashed_password=hashed_password,
+                first_name=normalized_first_name,
+                last_name=normalized_last_name,
+                username=normalized_username
+            )
+        except IntegrityError as e:
+            # Обрабатываем ошибки уникальности (race condition или другие проблемы)
+            error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+            if "username" in error_str.lower() or "users_username_key" in error_str.lower():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Имя пользователя занято')
+            elif "email" in error_str.lower() or "users_email_key" in error_str.lower():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Пользователь c такой почтой  существует')
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Пользователь с такими данными уже существует')
+        except Exception as e:
+            # Обрабатываем другие ошибки
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Ошибка при регистрации. Попробуйте позже.')
 
     token = create_email_verification_token(user_data.email)
     send_verification_email_task.delay(user_data.email, token)
@@ -54,23 +80,28 @@ async def verify_email(
         email = payload.get("sub")
 
         if token_type != "email_verification":
-            raise HTTPException(status_code=400, detail="Invalid token type")
+            # Редирект на главную с сообщением об ошибке
+            return RedirectResponse(url="/?error=invalid_token", status_code=302)
         if not email:
-            raise HTTPException(status_code=400, detail="Invalid token")
+            return RedirectResponse(url="/?error=invalid_token", status_code=302)
     except JWTError:
-        raise HTTPException(status_code=400, detail="Invalid or expired token")
+        # Редирект на главную с сообщением об ошибке
+        return RedirectResponse(url="/?error=expired_token", status_code=302)
 
     async with session.begin():
         user = await UsersDAO.find_one_or_none(session, email=email)
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            return RedirectResponse(url="/?error=user_not_found", status_code=302)
         await UsersDAO.update(session, user.id, is_active=True)
 
-    return {"message": "Email успешно подтверждён!"}
+    # Успешное подтверждение - редирект на главную с сообщением об успехе
+    return RedirectResponse(url="/?success=email_verified", status_code=302)
 
 
 @router.post('/login')
+@limiter.limit(LOGIN_LIMIT)
 async def login_user(
+        request: Request,
         response: Response,
         user_data: LoginUser,
         session: AsyncSession = Depends(get_async_session)
@@ -224,4 +255,75 @@ async def refresh_token(
     }
 
 
+# Эндпоинты для админки
+@router.get("/admin/users", response_model=list[UserResponse])
+async def get_all_users(
+        current_user: Users = Depends(get_current_user),
+        session: AsyncSession = Depends(get_async_session)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Доступ запрещён')
+    
+    try:
+        users = await UsersDAO.find_all(session)
+        return users
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Ошибка получения пользователей: {str(e)}')
+
+
+@router.put("/admin/users/{user_id}", response_model=UserResponse)
+async def update_user_by_admin(
+        user_id: int,
+        user_data: AdminUpdateUser,
+        current_user: Users = Depends(get_current_user),
+        session: AsyncSession = Depends(get_async_session)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Доступ запрещён')
+    
+    user = await UsersDAO.find_by_id(session, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Пользователь не найден')
+    
+    # Подготавливаем данные для обновления
+    update_data = {}
+    
+    if user_data.first_name is not None:
+        update_data['first_name'] = user_data.first_name.capitalize() if user_data.first_name else None
+    if user_data.last_name is not None:
+        update_data['last_name'] = user_data.last_name.capitalize() if user_data.last_name else None
+    if user_data.username is not None:
+        normalized_username = user_data.username.capitalize() if user_data.username else None
+        # Проверяем уникальность username, если он изменяется
+        if normalized_username != user.username:
+            existing_user = await UsersDAO.find_one_or_none(session, username=normalized_username)
+            if existing_user:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Имя пользователя занято')
+        update_data['username'] = normalized_username
+    if user_data.email is not None:
+        # Проверяем уникальность email, если он изменяется
+        if user_data.email != user.email:
+            existing_user = await UsersDAO.find_one_or_none(session, email=user_data.email)
+            if existing_user:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Email уже используется')
+        update_data['email'] = user_data.email
+    if user_data.is_active is not None:
+        update_data['is_active'] = user_data.is_active
+    if user_data.is_admin is not None:
+        update_data['is_admin'] = user_data.is_admin
+    
+    try:
+        await UsersDAO.update(session, user_id, **update_data)
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        if "username" in error_str.lower():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Имя пользователя занято')
+        elif "email" in error_str.lower():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Email уже используется')
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Ошибка обновления данных')
+    
+    updated_user = await UsersDAO.find_by_id(session, user_id)
+    return updated_user
 

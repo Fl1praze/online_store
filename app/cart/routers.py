@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_session
 from app.cart.schemas import CartItemCreate, CartResponse
 from app.users.dependencies import get_current_user
 from app.cart.dao import CartDAO,CartItemDAO
 from app.products.dao import ProductsDAO
+from app.security.rate_limiter import limiter, CART_ADD_LIMIT
 
 router = APIRouter(prefix="/cart", tags=["Cart"])
 
@@ -28,7 +29,9 @@ async def get_cart(
 
 
 @router.post("/add")
+@limiter.limit(CART_ADD_LIMIT)
 async def add_to_cart(
+        request: Request,
         item_data: CartItemCreate,
         current_user = Depends(get_current_user),
         session: AsyncSession = Depends(get_async_session)

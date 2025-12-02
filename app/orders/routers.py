@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_session
 from app.orders.models import  OrderStatus
@@ -8,12 +8,15 @@ from app.products.dao import ProductsDAO
 from app.orders.dao import OrderDAO, OrderItemDAO
 from app.users.dependencies import get_current_user
 from app.users.models import Users
+from app.security.rate_limiter import limiter, ORDER_LIMIT
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
 @router.post("/", response_model=OrderResponse)
+@limiter.limit(ORDER_LIMIT)
 async def create_order(
+        request: Request,
         order_data: OrderCreate,
         current_user: Users = Depends(get_current_user),
         session: AsyncSession = Depends(get_async_session)
@@ -100,6 +103,19 @@ async def get_all_orders(
     for order in orders:
         order_items = await OrderItemDAO.find_all(session, order_id=order.id)
         order.items = order_items
+        # Получаем email пользователя
+        if order.user_id:
+            from app.users.dao import UsersDAO
+            user = await UsersDAO.find_by_id(session, order.user_id)
+            if user:
+                order.user_email = user.email
+                order.user_username = user.username
+            else:
+                order.user_email = None
+                order.user_username = None
+        else:
+            order.user_email = None
+            order.user_username = None
     return orders
 
 
@@ -140,15 +156,34 @@ async def cancel_order(
             if not order:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
-
         if order.status not in [OrderStatus.pending, OrderStatus.processing]:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot cancel this order")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Невозможно отменить заказ с текущим статусом")
 
+        # Возвращаем товары на склад
+        order_items = await OrderItemDAO.find_all(session, order_id=order_id)
+        for item in order_items:
+            product = await ProductsDAO.find_by_id(session, item.product_id)
+            if product:
+                await ProductsDAO.update(session, product.id, stock=product.stock + item.quantity)
+
+        # Отменяем заказ
         await OrderDAO.update(session, order.id, status=OrderStatus.cancelled)
-
 
     updated_order = await OrderDAO.find_by_id(session, order_id)
     order_items = await OrderItemDAO.find_all(session, order_id=order_id)
+    
+    # Получаем информацию о товарах для каждого элемента заказа
+    for item in order_items:
+        product = await ProductsDAO.find_by_id(session, item.product_id)
+        if product:
+            item.product_name = product.name
+            item.product_slug = product.slug
+            item.product_image = product.small_image
+        else:
+            item.product_name = f"Товар #{item.product_id}"
+            item.product_slug = None
+            item.product_image = None
+    
     updated_order.items = order_items
 
     return updated_order
