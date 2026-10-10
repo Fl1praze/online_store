@@ -15,7 +15,6 @@ async def admin_dashboard(
     current_user: Users = Depends(get_current_user),
 ):
     if not current_user.is_admin:
-        # Простая защита админки
         return templates.TemplateResponse(
             "admin/forbidden.html",
             {"request": request, "user": current_user},

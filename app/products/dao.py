@@ -33,7 +33,6 @@ class ProductsDAO(BaseDAO):
         Ищет товары по фильтрам с пагинацией.
         Возвращает словарь с товарами и общим количеством.
         """
-        # 1. Собираем список условий для WHERE
         # Базовое условие: товар должен быть активен
         filters = [cls.model.is_active == True]
 
@@ -50,18 +49,19 @@ class ProductsDAO(BaseDAO):
         if filter_params.max_price is not None:
             filters.append(cls.model.price <= filter_params.max_price)
             
-        if filter_params.in_stock is not None:
-            if filter_params.in_stock:
-                filters.append(cls.model.stock > 0)
-            else:
-                filters.append(cls.model.stock == 0)
+        # По умолчанию показываем только товары в наличии
+        # Если in_stock явно False, показываем товары без остатка
+        if filter_params.in_stock is False:
+            filters.append(cls.model.stock == 0)
+        else:
+            # По умолчанию или если in_stock=True - только товары в наличии
+            filters.append(cls.model.stock > 0)
 
         if filter_params.name is not None:
             # частичный поиск по названию, нечувствителен к регистру
             filters.append(cls.model.name.ilike(f"%{filter_params.name}%"))
 
         # 2. Считаем общее количество (TOTAL) для пагинации
-        # Мы используем те же фильтры, что и для выборки
         count_query = select(func.count()).select_from(cls.model).where(*filters)
         total = await session.scalar(count_query) or 0
 

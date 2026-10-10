@@ -57,6 +57,7 @@ async def create_category(
 
     # очищаем кэш всех категорий и возможного кэша по слагу
     redis_client.delete('all_categories')
+    redis_client.delete('categories:all')  # Кэш для shop страниц
     if data.parent_id is None:
         # на всякий случай чистим кэш корневых категорий по слагу
         redis_client.delete(f"category:{slugify(data.name)}")
@@ -87,6 +88,7 @@ async def update_category(
         )
 
     redis_client.delete(f'all_categories')
+    redis_client.delete('categories:all')  # Кэш для shop страниц
     redis_client.delete(f'category:{category_slug}')
     return {'message': 'Category update is successful'}
 
@@ -107,5 +109,6 @@ async def delete_category(
         await CategoriesDAO.update_by_slug(session, category_slug, is_active=False)
 
     redis_client.delete(f'all_categories')
+    redis_client.delete('categories:all')  # Кэш для shop страниц
     redis_client.delete(f'category:{category_slug}')
     return {"message": "Category deleted successfully (marked as inactive)"}

@@ -204,8 +204,8 @@ async function refreshToken() {
             console.error("❌ Ошибка обновления токена:", res.status, error);
             if (res.status === 401) {
                 console.log("⚠️ Refresh token невалиден, очищаю cookies");
-                document.cookie = "booking_refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                document.cookie = "booking_access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                document.cookie = "rf=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                document.cookie = "at=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
             }
             return false;
         }
@@ -258,7 +258,7 @@ window.fetch = async function(...args) {
 
 // Обновляем токен при загрузке страницы
 (async function() {
-    const refreshTokenValue = getCookie("booking_refresh_token");
+    const refreshTokenValue = getCookie("rf");
     if (refreshTokenValue) {
         console.log("🚀 Обновляю access token при загрузке страницы...");
         await refreshToken();

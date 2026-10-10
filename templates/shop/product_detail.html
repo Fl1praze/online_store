@@ -122,6 +122,7 @@ async function addToCartDetail(productId) {
         const res = await fetch("/cart/add", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
+            credentials: "include",
             body: JSON.stringify({product_id: productId, quantity: quantity})
         });
         if (!res.ok) {
@@ -129,7 +130,15 @@ async function addToCartDetail(productId) {
             showNotification(data.detail || "Ошибка добавления в корзину", "error");
             return;
         }
-        showNotification("Товар добавлен в корзину", "success");
+        const data = await res.json();
+        console.log("📦 Ответ от сервера:", data);
+        const productName = data.product_name || "Товар";
+        const qty = data.quantity || quantity;
+        const message = qty > 1 
+            ? `${productName} (${qty} шт.) добавлен в корзину`
+            : `${productName} добавлен в корзину`;
+        console.log("✅ Показываю уведомление:", message);
+        showNotification(message, "success");
     } catch (e) {
         showNotification("Ошибка: " + e.message, "error");
     }

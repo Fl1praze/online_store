@@ -6,9 +6,11 @@ from app.orders.schemas import OrderCreate, OrderResponse
 from app.cart.dao import CartDAO, CartItemDAO
 from app.products.dao import ProductsDAO
 from app.orders.dao import OrderDAO, OrderItemDAO
+from app.review.dao import ReviewsDAO
 from app.users.dependencies import get_current_user
 from app.users.models import Users
 from app.security.rate_limiter import limiter, ORDER_LIMIT
+from app.redis_client import redis_client
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -161,10 +163,53 @@ async def cancel_order(
 
         # Возвращаем товары на склад
         order_items = await OrderItemDAO.find_all(session, order_id=order_id)
+        product_ids = set()  # Для отслеживания товаров, у которых нужно пересчитать рейтинг
+        
         for item in order_items:
             product = await ProductsDAO.find_by_id(session, item.product_id)
             if product:
                 await ProductsDAO.update(session, product.id, stock=product.stock + item.quantity)
+                product_ids.add(item.product_id)
+        
+        # Удаляем отзывы пользователя по товарам из этого заказа
+        for product_id in product_ids:
+            review = await ReviewsDAO.find_one_or_none(
+                session,
+                user_id=current_user.id,
+                product_id=product_id
+            )
+            
+            if review:
+                # Получаем товар для пересчета рейтинга
+                product = await ProductsDAO.find_by_id(session, product_id)
+                if product:
+                    old_rating = product.rating or 0.0
+                    old_count = product.review_count or 0
+                    deleted_rating = review.rating
+                    
+                    # Удаляем отзыв
+                    await ReviewsDAO.delete(session, review.id)
+                    
+                    # Пересчитываем рейтинг товара
+                    if old_count <= 1:
+                        # Если был только один отзыв, обнуляем рейтинг
+                        new_rating = 0.0
+                        new_count = 0.0
+                    else:
+                        # Формула обратная добавлению: (old_rating * old_count - deleted_rating) / (old_count - 1)
+                        new_rating = round((old_rating * old_count - deleted_rating) / (old_count - 1), 1)
+                        new_count = old_count - 1
+                    
+                    await ProductsDAO.update(session, product_id, rating=new_rating, review_count=new_count)
+                    
+                    # Очищаем кэш Redis для этого товара
+                    redis_client.delete(f'reviews:{product_id}')
+                    if product.slug:
+                        redis_client.delete(f'product:{product.slug}')
+                    # Очищаем все кэши товаров (на случай если товар в списке)
+                    product_list_keys = redis_client.keys('products:*')
+                    if product_list_keys:
+                        redis_client.delete(*product_list_keys)
 
         # Отменяем заказ
         await OrderDAO.update(session, order.id, status=OrderStatus.cancelled)

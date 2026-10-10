@@ -10,7 +10,7 @@ from app.users.models import Users
 
 
 def get_token(request: Request):
-    token = request.cookies.get('booking_access_token')
+    token = request.cookies.get('at')
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token not found')
     return token

@@ -16,7 +16,7 @@ from app.security.rate_limiter import limiter, SEARCH_LIMIT
 router = APIRouter(prefix='/products', tags=['products'])
 
 
-# with salary+redis
+# with selery+redis
 @router.post('/')
 async def create_product(
         name: str = Form(...),

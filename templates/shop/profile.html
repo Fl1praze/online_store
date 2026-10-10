@@ -93,11 +93,14 @@
                             <div class="text-right">
                                 <div class="text-lg font-bold text-gray-900">{{ "{:,}".format(order.total_amount|int).replace(",", " ") }} ₽</div>
                                 <div class="text-xs text-gray-500 mt-1">
-                                    {% if order.status == 'pending' %}Ожидает обработки
-                                    {% elif order.status == 'processing' %}В обработке
-                                    {% elif order.status == 'completed' %}Завершён
-                                    {% elif order.status == 'cancelled' %}Отменён
-                                    {% else %}{{ order.status }}{% endif %}
+                                    {% set status_str = order.status_str if order.status_str else (order.status.value if order.status.value else (order.status.name if order.status.name else order.status)) %}
+                                    {% if status_str == 'pending' %}Ожидает обработки
+                                    {% elif status_str == 'processing' %}В обработке
+                                    {% elif status_str == 'completed' %}Завершён
+                                    {% elif status_str == 'cancelled' %}Отменён
+                                    {% elif status_str == 'shipped' %}Отправлен
+                                    {% elif status_str == 'delivered' %}Доставлен
+                                    {% else %}{{ status_str }}{% endif %}
                                 </div>
                             </div>
                         </div>
@@ -107,15 +110,25 @@
                         <div class="text-sm text-gray-600 mb-3">
                             <strong>Способ оплаты:</strong> {{ order.payment_method }}
                         </div>
-                        {% if order.status == 'pending' or order.status == 'processing' %}
-                            <div class="mb-3">
+                        <div class="flex gap-2 mt-3">
+                            {% set status_str = order.status_str if order.status_str else (order.status.value if order.status.value else (order.status.name if order.status.name else order.status)) %}
+                            {% if status_str == 'pending' or status_str == 'processing' %}
                                 <button data-order-id="{{ order.id }}" 
-                                        onclick="cancelOrder(this.dataset.orderId)" 
+                                        onclick="cancelOrder({{ order.id }}, event)" 
                                         class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors">
                                     Отменить заказ
                                 </button>
-                            </div>
-                        {% endif %}
+                            {% endif %}
+                            {% if status_str == 'cancelled' %}
+                                <span class="px-4 py-2 bg-gray-300 text-gray-600 text-sm font-medium rounded-md cursor-not-allowed">
+                                    Заказ отменён
+                                </span>
+                            {% elif status_str == 'completed' %}
+                                <span class="px-4 py-2 bg-green-100 text-green-700 text-sm font-medium rounded-md">
+                                    Заказ завершён
+                                </span>
+                            {% endif %}
+                        </div>
                         {% if order.items %}
                             <div class="mt-3 pt-3 border-t border-gray-200">
                                 <div class="text-xs text-gray-500 mb-2 font-medium">Товары:</div>
@@ -196,30 +209,53 @@ async function changePassword() {
     }
 }
 
-async function cancelOrder(orderId) {
+async function cancelOrder(orderId, event) {
     const orderIdNum = parseInt(orderId, 10);
     if (isNaN(orderIdNum)) {
         showNotification("Ошибка: неверный ID заказа", "error");
         return;
     }
-    if (!confirm("Вы уверены, что хотите отменить заказ #" + orderIdNum + "?")) {
+    
+    if (!confirm("Вы уверены, что хотите отменить заказ #" + orderIdNum + "?\n\nТовары будут возвращены на склад.\nОтзывы по товарам из этого заказа будут удалены.")) {
         return;
     }
+    
+    // Блокируем кнопку во время запроса
+    const button = event ? event.target : document.querySelector(`button[data-order-id="${orderIdNum}"]`);
+    if (button) {
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = "Отмена...";
+        button.classList.add("opacity-50", "cursor-not-allowed");
+    }
+    
     try {
         const res = await fetch(`/orders/${orderIdNum}/cancel`, {
             method: "PATCH",
             headers: {"Content-Type": "application/json"},
             credentials: "include"
         });
+        
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
             showNotification(data.detail || "Ошибка отмены заказа", "error");
+            if (button) {
+                button.disabled = false;
+                button.textContent = originalText;
+                button.classList.remove("opacity-50", "cursor-not-allowed");
+            }
             return;
         }
-        showNotification("Заказ успешно отменён", "success");
-        setTimeout(() => window.location.reload(), 1000);
+        
+        showNotification("Заказ #" + orderIdNum + " успешно отменён. Товары возвращены на склад. Отзывы по товарам удалены.", "success");
+        setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
         showNotification("Ошибка: " + e.message, "error");
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+            button.classList.remove("opacity-50", "cursor-not-allowed");
+        }
     }
 }
 </script>

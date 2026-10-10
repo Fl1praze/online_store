@@ -58,8 +58,8 @@
                                 <div class="text-sm font-semibold text-gray-900">{{ "{:,}".format((i.quantity * i.price)|int).replace(",", " ") }} ₽</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button onclick="removeItem({{ i.product_id }})" 
-                                        class="text-red-600 hover:text-red-900 transition-colors">
+                                <button data-product-id="{{ i.product_id }}" 
+                                        class="remove-item-btn text-red-600 hover:text-red-900 transition-colors">
                                     Удалить
                                 </button>
                             </td>
@@ -74,6 +74,10 @@
                 <div class="text-lg font-semibold text-gray-900">
                     Итого: <span class="text-2xl text-blue-600">{{ "{:,}".format(total|int).replace(",", " ") }} ₽</span>
                 </div>
+                <button onclick="deleteCart()" 
+                        class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors">
+                    Удалить корзину
+                </button>
             </div>
             <!-- Форма оформления заказа -->
             <div id="order-form" class="hidden mt-4 p-4 bg-white rounded-lg border border-gray-200">
@@ -125,6 +129,40 @@ async function removeItem(productId) {
             return;
         }
         showNotification("Товар удалён из корзины", "success");
+        setTimeout(() => window.location.reload(), 1000);
+    } catch (e) {
+        showNotification("Ошибка: " + e.message, "error");
+    }
+}
+
+// Обработчик для кнопок удаления товара
+document.addEventListener('DOMContentLoaded', function() {
+    const removeButtons = document.querySelectorAll('.remove-item-btn');
+    removeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const productId = this.getAttribute('data-product-id');
+            if (productId) {
+                removeItem(parseInt(productId, 10));
+            }
+        });
+    });
+});
+
+async function deleteCart() {
+    if (!confirm("Вы уверены, что хотите полностью удалить корзину? Это действие нельзя отменить.")) {
+        return;
+    }
+    try {
+        const res = await fetch("/cart/delete", {
+            method: "DELETE",
+            credentials: "include"
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            showNotification(data.detail || "Ошибка удаления корзины", "error");
+            return;
+        }
+        showNotification("Корзина полностью удалена", "success");
         setTimeout(() => window.location.reload(), 1000);
     } catch (e) {
         showNotification("Ошибка: " + e.message, "error");

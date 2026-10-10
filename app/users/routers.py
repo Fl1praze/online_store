@@ -1,10 +1,9 @@
 import json
-
 from fastapi import APIRouter, Response, Depends, HTTPException,status,Request
 from fastapi.responses import RedirectResponse
 from jose import jwt,JWTError
 from sqlalchemy.exc import IntegrityError
-from app.users.auth import get_password_hash, verify_password, create_access_token,create_refresh_token,create_email_verification_token
+from app.users.auth import get_password_hash, verify_password, create_at,create_rf,create_email_verification_token
 from app.users.dao import UsersDAO
 from app.users.schemas import CreateUser,LoginUser,ChangePasswordRequest,ChangeData,UserResponse,AdminUpdateUser
 from app.users.models import Users
@@ -117,18 +116,18 @@ async def login_user(
     if not user_verif_email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='email не подтвержден')
 
-    access_token = create_access_token({"sub": str(user.id)}, user.password_version)
-    refresh_token = create_refresh_token({"sub": str(user.id)}, user.password_version)
-    response.set_cookie('booking_access_token', access_token, httponly=True, max_age=1800, secure=True, samesite="lax")
-    response.set_cookie('booking_refresh_token', refresh_token, httponly=True, max_age=604800, secure=True,
+    at = create_at({"sub": str(user.id)}, user.password_version)
+    rf = create_rf({"sub": str(user.id)}, user.password_version)
+    response.set_cookie('at', at, httponly=True, max_age=1800, secure=True, samesite="lax")
+    response.set_cookie('rf', rf, httponly=True, max_age=604800, secure=True,
                         samesite="lax")
     return {'message': 'user login success'}
 
 
 @router.post('/logout')
 async def logout_user(response: Response):
-    response.delete_cookie('booking_access_token')
-    response.delete_cookie('booking_refresh_token')
+    response.delete_cookie('at')
+    response.delete_cookie('rf')
     return {'message': 'user logout success'}
 
 
@@ -171,8 +170,8 @@ async def change_password(
         new_pwd_hash = get_password_hash(request.new_password)
         await UsersDAO.update(session, current_user.id, hashed_password=new_pwd_hash)
 
-    new_access_token = create_access_token({"sub": str(current_user.id)}, new_version_token)
-    response.set_cookie('booking_access_token', new_access_token, httponly=True, max_age=1800)
+    new_at = create_at({"sub": str(current_user.id)}, new_version_token)
+    response.set_cookie('at', new_at, httponly=True, max_age=1800)
 
     redis_client.delete(f'user:{current_user.id}')
     return {'message': 'password update successful'}
@@ -208,8 +207,8 @@ async def logout_other_sessions(
         if new_version is None:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-    new_access_token = create_access_token({"sub": str(current_user.id)}, password_version=new_version)
-    responce.set_cookie('booking_access_token', new_access_token, httponly=True, max_age=1800)
+    new_at = create_at({"sub": str(current_user.id)}, password_version=new_version)
+    responce.set_cookie('at', new_at, httponly=True, max_age=1800)
     return {
         "message": "Все другие сеансы успешно завершены",
         "new_password_version": new_version
@@ -222,12 +221,12 @@ async def refresh_token(
         response: Response,
         session: AsyncSession = Depends(get_async_session)
 ):
-    refresh_token = request.cookies.get('booking_refresh_token')
-    if not refresh_token:
+    rf = request.cookies.get('rf')
+    if not rf:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Refresh token отсутствует')
 
     try:
-        payload = jwt.decode(refresh_token, settings.SECRET_KEY, settings.ALGORITHM)
+        payload = jwt.decode(rf, settings.SECRET_KEY, settings.ALGORITHM)
         user_id: str = payload.get("sub")
         pwd_ver_in_token: int = payload.get("pwd_ver")
         if user_id is None:
@@ -242,15 +241,15 @@ async def refresh_token(
     if user.password_version != pwd_ver_in_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token недействителен")
 
-    new_access_token = create_access_token({"sub": str(user.id)}, user.password_version)
-    new_refresh_token = create_refresh_token({"sub": str(user.id)}, user.password_version)
+    new_at = create_at({"sub": str(user.id)}, user.password_version)
+    new_rf = create_rf({"sub": str(user.id)}, user.password_version)
 
-    response.set_cookie('booking_access_token', new_access_token, httponly=True, max_age=1800, secure=True, samesite="lax")
-    response.set_cookie('booking_refresh_token', new_refresh_token, httponly=True, max_age=604800, secure=True, samesite="lax")
+    response.set_cookie('at', new_at, httponly=True, max_age=1800, secure=True, samesite="lax")
+    response.set_cookie('rf', new_rf, httponly=True, max_age=604800, secure=True, samesite="lax")
 
     return {
         "message": "Token refreshed",
-        "access_token": new_access_token,
+        "at": new_at,
         "token_type": "bearer"
     }
 

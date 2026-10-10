@@ -36,10 +36,10 @@ def create_token(
     )
     return encoded_jwt
 
-def create_access_token(data: dict, password_version: int) -> str:
+def create_at(data: dict, password_version: int) -> str:
     return create_token(data, timedelta(minutes=30), password_version,"access")
 
-def create_refresh_token(data: dict, password_version: int) -> str:
+def create_rf(data: dict, password_version: int) -> str:
     return create_token(data, timedelta(days=7), password_version,"refresh")
 
 def create_email_verification_token(email: str) -> str:

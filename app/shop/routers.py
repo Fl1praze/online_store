@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -13,6 +14,7 @@ from app.users.models import Users
 from app.cart.dao import CartDAO, CartItemDAO
 from app.orders.schemas import OrderCreate
 from app.orders.dao import OrderDAO, OrderItemDAO
+from app.redis_client import redis_client
 from sqlalchemy import select, and_
 
 
@@ -42,8 +44,17 @@ async def shop_index(
     session: AsyncSession = Depends(get_async_session),
     current_user: Users | None = Depends(get_current_user_optional),
 ):
+    # Кэшируем категории (они редко меняются)
+    cache_key_categories = "categories:all"
+    cached_categories = redis_client.get(cache_key_categories)
+    if cached_categories:
+        categories = json.loads(cached_categories)
+    else:
+        categories_list = await CategoriesDAO.find_all(session)
+        categories = [{"id": c.id, "name": c.name, "slug": c.slug, "is_active": c.is_active, "parent_id": c.parent_id} for c in categories_list]
+        redis_client.setex(cache_key_categories, 3600, json.dumps(categories))  # Кэш на 1 час
+    
     products_page = await ProductsDAO.find_all_with_filters(session, filters)
-    categories = await CategoriesDAO.find_all(session)
     return templates.TemplateResponse(
         "shop/index.html",
         {
@@ -115,6 +126,16 @@ async def products_by_category(
             status_code=404,
         )
 
+    # Кэшируем категории (они редко меняются)
+    cache_key_categories = "categories:all"
+    cached_categories = redis_client.get(cache_key_categories)
+    if cached_categories:
+        categories = json.loads(cached_categories)
+    else:
+        categories_list = await CategoriesDAO.find_all(session)
+        categories = [{"id": c.id, "name": c.name, "slug": c.slug, "is_active": c.is_active, "parent_id": c.parent_id} for c in categories_list]
+        redis_client.setex(cache_key_categories, 3600, json.dumps(categories))  # Кэш на 1 час
+    
     # Получаем все подкатегории (бренды) для этой категории
     subcategory_ids = await CategoriesDAO.get_subcategories(session, category.id)
     # Список ID: сама категория + все её подкатегории
@@ -122,7 +143,9 @@ async def products_by_category(
     # Фиксируем фильтр по всем категориям (родительская + дочерние)
     filters.category_id = category_ids
     products_page = await ProductsDAO.find_all_with_filters(session, filters)
-    categories = await CategoriesDAO.find_all(session)
+    
+    # Преобразуем category в словарь для шаблона
+    current_category_dict = {"id": category.id, "name": category.name, "slug": category.slug, "is_active": category.is_active, "parent_id": category.parent_id}
 
     return templates.TemplateResponse(
         "shop/index.html",
@@ -131,7 +154,7 @@ async def products_by_category(
             "products_page": products_page,
             "categories": categories,
             "filters": filters,
-            "current_category": category,
+            "current_category": current_category_dict,
             "user": current_user,
         },
     )
@@ -218,6 +241,11 @@ async def profile_page(
                 item.product_name = f"Товар #{item.product_id}"
                 item.product_slug = None
         order.items = order_items
+        # Преобразуем статус Enum в строку для шаблона
+        if order.status:
+            order.status_str = order.status.value if hasattr(order.status, 'value') else str(order.status)
+        else:
+            order.status_str = 'pending'
 
     return templates.TemplateResponse(
         "shop/profile.html",

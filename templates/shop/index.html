@@ -168,18 +168,31 @@ function applyFilters() {
                                 {% endif %}
 
                                 <div class="mt-auto">
-                                    <div class="text-xl font-bold text-gray-900 mb-1">{{ "{:,}".format(p.price).replace(",", " ") }} ₽</div>
-                                    <div class="text-xs text-gray-500 mb-3">Остаток: {{ p.stock }}</div>
+                                    {% if p.price %}
+                                        <div class="text-xl font-bold text-gray-900 mb-1">{{ "{:,}".format(p.price).replace(",", " ") }} ₽</div>
+                                    {% else %}
+                                        <div class="text-xl font-bold text-gray-400 mb-1">Цена не указана</div>
+                                    {% endif %}
+                                    <div class="text-xs {% if p.stock > 0 %}text-gray-500{% else %}text-red-500 font-semibold{% endif %} mb-3">
+                                        Остаток: {{ p.stock }}
+                                    </div>
                                     
-                                    <form onsubmit="event.preventDefault(); addToCart({{ p.id }});" class="flex gap-2">
-                                        <input type="number" min="1" max="{{ p.stock }}" value="1" 
-                                               id="qty-{{ p.id }}"
-                                               class="w-16 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                        <button type="submit" 
-                                                class="flex-1 px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors">
-                                            В корзину
+                                    {% if p.stock > 0 and p.price %}
+                                        <form onsubmit="event.preventDefault(); addToCart({{ p.id }});" class="flex gap-2">
+                                            <input type="number" min="1" max="{{ p.stock }}" value="1" 
+                                                   id="qty-{{ p.id }}"
+                                                   class="w-16 px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <button type="submit" 
+                                                    class="flex-1 px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors">
+                                                В корзину
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <button disabled 
+                                                class="w-full px-4 py-1.5 bg-gray-300 text-gray-500 text-sm font-medium rounded-md cursor-not-allowed">
+                                            {% if p.stock == 0 %}Нет в наличии{% else %}Недоступен{% endif %}
                                         </button>
-                                    </form>
+                                    {% endif %}
                                 </div>
                             </div>
                         </article>
@@ -223,6 +236,7 @@ async function addToCart(productId) {
         const res = await fetch("/cart/add", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
+            credentials: "include",
             body: JSON.stringify({product_id: productId, quantity: quantity})
         });
         if (!res.ok) {
@@ -230,7 +244,15 @@ async function addToCart(productId) {
             showNotification(data.detail || "Ошибка добавления в корзину", "error");
             return;
         }
-        showNotification("Товар добавлен в корзину", "success");
+        const data = await res.json();
+        console.log("📦 Ответ от сервера:", data);
+        const productName = data.product_name || "Товар";
+        const qty = data.quantity || quantity;
+        const message = qty > 1 
+            ? `${productName} (${qty} шт.) добавлен в корзину`
+            : `${productName} добавлен в корзину`;
+        console.log("✅ Показываю уведомление:", message);
+        showNotification(message, "success");
     } catch (e) {
         showNotification("Ошибка: " + e.message, "error");
     }

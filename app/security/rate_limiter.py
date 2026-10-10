@@ -1,7 +1,3 @@
-"""
-Модуль для защиты от атак через rate limiting
-Использует slowapi для ограничения частоты запросов
-"""
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from fastapi import Request
@@ -11,7 +7,6 @@ from fastapi import Request
 def get_client_ip(request: Request) -> str:
     """
     Получает IP адрес клиента из запроса.
-    Учитывает прокси и заголовки X-Forwarded-For
     """
     # Проверяем заголовки прокси
     forwarded_for = request.headers.get("X-Forwarded-For")

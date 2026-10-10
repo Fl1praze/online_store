@@ -70,7 +70,11 @@ async def add_to_cart(
                 price=product.price
             )
 
-    return {"message": "Item added to cart"}
+    return {
+        "message": "Item added to cart",
+        "product_name": product.name,
+        "quantity": item_data.quantity
+    }
 
 
 @router.delete("/remove/{product_id}")
@@ -112,3 +116,24 @@ async def clear_cart(
             await CartItemDAO.delete(session, item.id)
 
     return {"message": "Cart cleared"}
+
+
+@router.delete("/delete")
+async def delete_cart(
+        current_user = Depends(get_current_user),
+        session: AsyncSession = Depends(get_async_session)
+):
+
+    async with session.begin():
+        cart = await CartDAO.find_one_or_none(session, user_id=current_user.id)
+        if not cart:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart not found")
+
+        
+        items = await CartItemDAO.find_all(session, cart_id=cart.id)
+        for item in items:
+            await CartItemDAO.delete(session, item.id)
+
+        await CartDAO.delete(session, cart.id)
+
+    return {"message": "Cart completely deleted"}
